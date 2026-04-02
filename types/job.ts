@@ -26,7 +26,7 @@ export interface Job {
   yearsExperienceDisplay: string;
   employmentType: EmploymentType | null;
   datePosted: string;
-  datePostedRaw: Date | null;
+  datePostedRaw: Date | string | null;
   source: JobSource;
   sourceUrl: string;
   description: string;

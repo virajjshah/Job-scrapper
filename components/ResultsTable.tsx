@@ -130,7 +130,12 @@ function getSortValue(job: Job, field: SortField): string | number | null {
     case 'salary': return job.salary?.min ?? job.salary?.max ?? -1;
     case 'yearsExperience': return job.yearsExperience ?? -1;
     case 'employmentType': return job.employmentType?.toLowerCase() ?? '';
-    case 'datePostedRaw': return job.datePostedRaw?.getTime() ?? 0;
+    case 'datePostedRaw': {
+      const d = job.datePostedRaw;
+      if (!d) return 0;
+      const ts = d instanceof Date ? d.getTime() : new Date(d).getTime();
+      return isNaN(ts) ? 0 : ts;
+    }
     case 'source': return job.source.toLowerCase();
     default: return '';
   }
