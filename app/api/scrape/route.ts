@@ -88,10 +88,9 @@ export async function POST(req: NextRequest) {
 
     // Sort by date (newest first) as default
     filtered.sort((a, b) => {
-      if (!a.datePostedRaw && !b.datePostedRaw) return 0;
-      if (!a.datePostedRaw) return 1;
-      if (!b.datePostedRaw) return -1;
-      return b.datePostedRaw.getTime() - a.datePostedRaw.getTime();
+      const ta = a.datePostedRaw instanceof Date ? a.datePostedRaw.getTime() : 0;
+      const tb = b.datePostedRaw instanceof Date ? b.datePostedRaw.getTime() : 0;
+      return tb - ta;
     });
 
     const result: ScrapeResult = {
