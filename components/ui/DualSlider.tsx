@@ -33,6 +33,35 @@ export function DualSlider({ min, max, step = 1, value, onChange, formatLabel, l
 
   const pct = (v: number) => ((v - min) / (max - min)) * 100;
 
+  // When lo is in the upper half of the range, bring it to front so it can
+  // be dragged left without the hi thumb intercepting. This is the standard
+  // fix for overlapping range inputs.
+  const loZ = lo > (min + max) / 2 ? 4 : 2;
+  const hiZ = lo > (min + max) / 2 ? 2 : 4;
+
+  const thumbCls =
+    'absolute w-full h-1.5 appearance-none bg-transparent cursor-pointer ' +
+    // Disable pointer-events on the whole element; re-enable only on the thumb.
+    // This allows the *other* thumb to receive events when they overlap.
+    '[pointer-events:none] ' +
+    '[&::-webkit-slider-thumb]:[pointer-events:all] ' +
+    '[&::-moz-range-thumb]:[pointer-events:all] ' +
+    '[&::-webkit-slider-thumb]:appearance-none ' +
+    '[&::-webkit-slider-thumb]:h-4 ' +
+    '[&::-webkit-slider-thumb]:w-4 ' +
+    '[&::-webkit-slider-thumb]:rounded-full ' +
+    '[&::-webkit-slider-thumb]:bg-blue-600 ' +
+    '[&::-webkit-slider-thumb]:border-2 ' +
+    '[&::-webkit-slider-thumb]:border-white ' +
+    '[&::-webkit-slider-thumb]:shadow ' +
+    '[&::-moz-range-thumb]:h-4 ' +
+    '[&::-moz-range-thumb]:w-4 ' +
+    '[&::-moz-range-thumb]:rounded-full ' +
+    '[&::-moz-range-thumb]:bg-blue-600 ' +
+    '[&::-moz-range-thumb]:border-2 ' +
+    '[&::-moz-range-thumb]:border-white ' +
+    '[&::-moz-range-thumb]:border-solid';
+
   return (
     <div className="space-y-2">
       <div className="flex justify-between text-xs text-gray-500">
@@ -44,10 +73,10 @@ export function DualSlider({ min, max, step = 1, value, onChange, formatLabel, l
         <div className="absolute w-full h-1.5 bg-gray-200 rounded-full" />
         {/* Filled range */}
         <div
-          className="absolute h-1.5 bg-blue-500 rounded-full"
+          className="absolute h-1.5 bg-blue-500 rounded-full pointer-events-none"
           style={{ left: `${pct(lo)}%`, width: `${pct(hi) - pct(lo)}%` }}
         />
-        {/* Low thumb */}
+        {/* Low thumb — z-index swaps based on position */}
         <input
           type="range"
           min={min}
@@ -56,7 +85,8 @@ export function DualSlider({ min, max, step = 1, value, onChange, formatLabel, l
           value={lo}
           onChange={handleLo}
           aria-label={`${label} minimum`}
-          className="absolute w-full h-1.5 appearance-none bg-transparent cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-600 [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white"
+          style={{ zIndex: loZ }}
+          className={thumbCls}
         />
         {/* High thumb */}
         <input
@@ -67,7 +97,8 @@ export function DualSlider({ min, max, step = 1, value, onChange, formatLabel, l
           value={hi}
           onChange={handleHi}
           aria-label={`${label} maximum`}
-          className="absolute w-full h-1.5 appearance-none bg-transparent cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-600 [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white"
+          style={{ zIndex: hiZ }}
+          className={thumbCls}
         />
       </div>
     </div>

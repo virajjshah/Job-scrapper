@@ -86,41 +86,123 @@ async function scrapeLinkedInJob(page: Page, url: string): Promise<Job | null> {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
   });
 
-  await sleep(1000);
+  await sleep(1500);
+
+  // Click "Show more" to expand description before extracting
+  await page.evaluate(() => {
+    const btn = document.querySelector(
+      'button[aria-label*="more"], button.show-more-less-html__button, button[aria-label*="Show more"]'
+    ) as HTMLButtonElement | null;
+    if (btn) btn.click();
+  });
+
+  await sleep(600);
 
   const data = await page.evaluate(() => {
+    // ── Title ──────────────────────────────────────────────────────────────
     const title =
-      document.querySelector('h1.top-card-layout__title, h1[class*="job-title"]')?.textContent?.trim() ?? '';
+      document.querySelector(
+        'h1.top-card-layout__title, h1[class*="job-title"], h1[class*="JobTitle"]'
+      )?.textContent?.trim() ?? '';
+
+    // ── Company ────────────────────────────────────────────────────────────
     const company =
-      document.querySelector('a.topcard__org-name-link, [class*="company-name"]')?.textContent?.trim() ?? '';
+      document.querySelector(
+        'a.topcard__org-name-link, [class*="company-name"], [class*="CompanyName"]'
+      )?.textContent?.trim() ?? '';
+
+    // ── Location ───────────────────────────────────────────────────────────
     const location =
-      document.querySelector('.topcard__flavor--bullet, [class*="job-location"]')?.textContent?.trim() ?? '';
-    const datePostedEl = document.querySelector('[class*="posted-time"], time');
+      document.querySelector(
+        '.topcard__flavor--bullet, [class*="job-location"], [class*="JobLocation"]'
+      )?.textContent?.trim() ?? '';
+
+    // ── Date posted ────────────────────────────────────────────────────────
+    const datePostedEl = document.querySelector('[class*="posted-time"], time, [class*="PostedDate"]');
     const datePosted = datePostedEl?.textContent?.trim() ?? '';
 
-    // "Reposted" label appears near the posted-time element or in a badge
-    const pageText = document.body.innerText ?? '';
-    const isReposted = /\breposted\b/i.test(pageText.slice(0, 2000));
+    // ── Reposted ───────────────────────────────────────────────────────────
+    // LinkedIn shows "Reposted" as a text badge – scan the full page body.
+    // We check the entire innerText so the badge isn't cut off by a slice.
+    const pageText = (document.body.innerText ?? '').toLowerCase();
+    const isReposted = pageText.includes('reposted');
 
-    // Expand description
-    const showMoreBtn = document.querySelector(
-      'button[aria-label*="more"], button.show-more-less-html__button'
-    );
-    if (showMoreBtn) (showMoreBtn as HTMLButtonElement).click();
-
+    // ── Description ────────────────────────────────────────────────────────
     const description =
-      document.querySelector('.description__text, [class*="job-description"]')?.textContent?.trim() ?? '';
-    const employmentType =
-      document.querySelector('[class*="employment-type"] span')?.textContent?.trim() ?? '';
+      document.querySelector(
+        '.description__text, [class*="job-description"], [class*="JobDescription"], #job-details'
+      )?.textContent?.trim() ?? '';
 
-    // Extract external apply URL — LinkedIn offsite apply button
-    const applyBtn = document.querySelector(
-      'a[data-tracking-control-name*="apply"], ' +
-      'a[href*="apply"]:not([href*="linkedin.com"]), ' +
-      '.apply-button--link[href], ' +
-      'a.topcard__link[href*="apply"]'
-    ) as HTMLAnchorElement | null;
-    const applyUrl = applyBtn?.href ?? null;
+    // ── Employment type ────────────────────────────────────────────────────
+    // LinkedIn renders job criteria as a list: <h3> label + <span> value.
+    // We iterate all criteria items and find the one labelled "Employment type".
+    let employmentType = '';
+    const criteriaItems = Array.from(
+      document.querySelectorAll(
+        'li.description__job-criteria-item, [class*="job-criteria-item"], [class*="JobCriteria"] li'
+      )
+    );
+    for (const item of criteriaItems) {
+      const header = item.querySelector('h3, [class*="subheader"], [class*="label"]')?.textContent?.toLowerCase() ?? '';
+      if (header.includes('employment type') || header.includes('job type')) {
+        employmentType = item.querySelector('span, [class*="text"]')?.textContent?.trim() ?? '';
+        break;
+      }
+    }
+    // Fallback selectors if structured criteria not found
+    if (!employmentType) {
+      employmentType =
+        document.querySelector(
+          '[class*="employment-type"] span, [data-test*="employmentType"], [class*="EmploymentType"]'
+        )?.textContent?.trim() ?? '';
+    }
+
+    // ── Apply URL ──────────────────────────────────────────────────────────
+    // 1. Try JSON-LD JobPosting schema first – sometimes has direct URL
+    let applyUrl: string | null = null;
+    try {
+      const ldScripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'));
+      for (const s of ldScripts) {
+        const json = JSON.parse(s.textContent ?? '{}');
+        // directApply jobs have applicationContact or apply URL
+        const candidate =
+          json.apply?.url ??
+          json.applicationContact?.url ??
+          (json.url && !json.url.includes('linkedin.com') ? json.url : null);
+        if (candidate) { applyUrl = candidate; break; }
+      }
+    } catch { /* ignore */ }
+
+    // 2. Look for offsite apply button – href must NOT be a linkedin.com URL
+    if (!applyUrl) {
+      const applySelectors = [
+        'a.apply-button--offsite',
+        'a[data-tracking-control-name*="offsite_apply"]',
+        'a[data-tracking-control-name*="apply"][href]:not([href*="linkedin.com"])',
+        // The "Apply on company website" link
+        'a[class*="apply"][href]:not([href*="linkedin.com"])',
+        '.apply-button[href]:not([href*="linkedin.com"])',
+      ];
+      for (const sel of applySelectors) {
+        const el = document.querySelector(sel) as HTMLAnchorElement | null;
+        if (el?.href && !el.href.includes('linkedin.com')) {
+          applyUrl = el.href;
+          break;
+        }
+      }
+    }
+
+    // 3. Scan all <a> tags on the page for non-LinkedIn apply links as last resort
+    if (!applyUrl) {
+      const allLinks = Array.from(document.querySelectorAll('a[href]')) as HTMLAnchorElement[];
+      const candidate = allLinks.find(
+        (a) =>
+          !a.href.includes('linkedin.com') &&
+          /apply|careers?|jobs?|position/i.test(a.href) &&
+          a.href.startsWith('http')
+      );
+      if (candidate) applyUrl = candidate.href;
+    }
 
     return { title, company, location, datePosted, description, employmentType, applyUrl, isReposted };
   });

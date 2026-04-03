@@ -123,14 +123,33 @@ async function scrapeGlassdoorJob(
           ?.textContent?.trim() ?? '';
       const salary =
         document.querySelector('[data-test="salaryEstimate"], [class*="salary"]')?.textContent?.trim() ?? '';
-      const empType =
-        document.querySelector('[class*="JobDetails"] [class*="JobTypeList"]')?.textContent?.trim() ?? '';
+
+      // Employment type: check JobType list, then scan detail chips
+      let empType =
+        document.querySelector(
+          '[class*="JobDetails"] [class*="JobTypeList"], ' +
+          '[data-test="job-type"], [class*="jobType"], ' +
+          '[class*="EmploymentType"]'
+        )?.textContent?.trim() ?? '';
+      if (!empType) {
+        const chips = Array.from(document.querySelectorAll('[class*="JobDetails"] span, [class*="detail"] span'));
+        for (const c of chips) {
+          const t = c.textContent?.toLowerCase() ?? '';
+          if (t.includes('full-time') || t.includes('part-time') || t.includes('contract') || t.includes('permanent')) {
+            empType = c.textContent?.trim() ?? '';
+            break;
+          }
+        }
+      }
+
       // Glassdoor external apply button
       const applyBtn = document.querySelector(
         'a[data-test="applyButton"], a[class*="applyButton"], a[href*="apply"]:not([href*="glassdoor"])'
       ) as HTMLAnchorElement | null;
       const applyUrl = applyBtn?.href ?? null;
-      const isReposted = /\breposted\b/i.test(document.body.innerText?.slice(0, 1000) ?? '');
+
+      // Scan full page for "Reposted" — no slicing
+      const isReposted = /\breposted\b/i.test(document.body.innerText ?? '');
       return { description, salary, empType, applyUrl, isReposted };
     });
 

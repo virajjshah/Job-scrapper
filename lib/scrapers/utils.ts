@@ -52,8 +52,12 @@ export function detectWorkType(text: string): WorkType {
 export function detectEmploymentType(text: string): EmploymentType | null {
   const lower = text.toLowerCase();
   if (lower.includes('contract') || lower.includes('contractor') || lower.includes('freelance')) return 'Contract';
-  if (lower.includes('part-time') || lower.includes('part time')) return 'Part-time';
-  if (lower.includes('full-time') || lower.includes('full time')) return 'Full-time';
+  if (lower.includes('part-time') || lower.includes('part time') || lower.includes('parttime')) return 'Part-time';
+  if (
+    lower.includes('full-time') || lower.includes('full time') ||
+    lower.includes('fulltime') || lower.includes('permanent') ||
+    lower === 'full time' || lower === 'fulltime'
+  ) return 'Full-time';
   return null;
 }
 

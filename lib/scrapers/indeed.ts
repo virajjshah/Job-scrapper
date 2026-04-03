@@ -108,14 +108,34 @@ async function scrapeIndeedJob(
         document.querySelector('#jobDescriptionText, [class*="jobDescriptionText"]')?.textContent?.trim() ?? '';
       const salary =
         document.querySelector('[class*="salary"], [id*="salaryInfoAndJobType"]')?.textContent?.trim() ?? '';
-      const employmentType =
-        document.querySelector('[class*="jobType"], [id*="jobType"]')?.textContent?.trim() ?? '';
-      // External apply link on the Indeed page
+
+      // Employment type: check dedicated element first, then scan description chips
+      let employmentType =
+        document.querySelector(
+          '[class*="jobType"], [id*="jobType"], [data-testid*="jobType"], ' +
+          '[class*="EmploymentType"], [class*="employment-type"], ' +
+          'span[class*="chip"]:not([class*="location"]):not([class*="salary"])'
+        )?.textContent?.trim() ?? '';
+      // Also check attribute-labelled items (Indeed uses metadata spans)
+      if (!employmentType) {
+        const chips = Array.from(document.querySelectorAll('[data-testid="attribute_snippet_testid"], [class*="metadata"] span'));
+        for (const c of chips) {
+          const t = c.textContent?.toLowerCase() ?? '';
+          if (t.includes('full-time') || t.includes('part-time') || t.includes('contract') || t.includes('permanent')) {
+            employmentType = c.textContent?.trim() ?? '';
+            break;
+          }
+        }
+      }
+
+      // External apply link
       const applyBtn = document.querySelector(
         'a[id*="indeedApplyButton"], a[class*="ApplyButton"], a[data-jk][href*="apply"]'
       ) as HTMLAnchorElement | null;
       const applyUrl = applyBtn?.href ?? null;
-      const isReposted = /\breposted\b/i.test(document.body.innerText?.slice(0, 1000) ?? '');
+
+      // Scan full page for "Reposted" — no slicing
+      const isReposted = /\breposted\b/i.test(document.body.innerText ?? '');
       return { description, salary, employmentType, applyUrl, isReposted };
     });
 
