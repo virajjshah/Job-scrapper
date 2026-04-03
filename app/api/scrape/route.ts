@@ -84,6 +84,7 @@ export async function POST(req: NextRequest) {
 
     // Deduplicate then apply filters
     const deduped = deduplicateJobs(allJobs);
+    const totalDeduped = deduped.length;
     const filtered = applyFilters(deduped, filters);
 
     // Sort by date (newest first) as default
@@ -97,6 +98,7 @@ export async function POST(req: NextRequest) {
       jobs: filtered,
       errors,
       totalBySource,
+      totalDeduped,
       durationMs: Date.now() - startTime,
     };
 

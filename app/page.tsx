@@ -177,6 +177,7 @@ export default function HomePage() {
             <ResultsTable
               jobs={result.jobs}
               totalBySource={result.totalBySource}
+              totalDeduped={result.totalDeduped}
               errors={result.errors}
               durationMs={result.durationMs}
               onExport={handleExport}

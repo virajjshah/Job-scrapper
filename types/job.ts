@@ -57,6 +57,8 @@ export interface ScrapeResult {
   jobs: Job[];
   errors: Record<JobSource | string, string | null>;
   totalBySource: Record<JobSource | string, number>;
+  /** Unique jobs after deduplication, before filters — shows how many filters hid */
+  totalDeduped: number;
   durationMs: number;
 }
 

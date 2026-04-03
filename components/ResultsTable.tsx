@@ -9,6 +9,7 @@ import type { Job, SortField, SortDir, SortState } from '@/types/job';
 interface ResultsTableProps {
   jobs: Job[];
   totalBySource: Record<string, number>;
+  totalDeduped: number;
   errors: Record<string, string | null>;
   durationMs: number;
   onExport: () => void;
@@ -159,7 +160,7 @@ function SortIcon({ field, sort }: { field: SortField | null; sort: SortState })
     : <ChevronDown size={13} className="text-blue-500" />;
 }
 
-export function ResultsTable({ jobs, totalBySource, errors, durationMs, onExport, isExporting }: ResultsTableProps) {
+export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durationMs, onExport, isExporting }: ResultsTableProps) {
   const [sort, setSort] = useState<SortState>({ field: 'datePostedRaw', dir: 'desc' });
   const [hideDuplicates] = useState(true); // Duplicates are already removed server-side; toggle is UX only
   const [filter, setFilter] = useState('');
@@ -210,11 +211,19 @@ export function ResultsTable({ jobs, totalBySource, errors, durationMs, onExport
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex-1 min-w-[200px]">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            <span className="font-semibold text-gray-900 dark:text-gray-100">{displayed.length} jobs found</span>
-            {sourceCount && <span className="ml-1 text-gray-400">({sourceCount})</span>}
+          <p className="text-sm text-gray-600 dark:text-gray-400 leading-snug">
+            <span className="font-semibold text-gray-900 dark:text-gray-100">{displayed.length} jobs</span>
+            {jobs.length !== displayed.length && (
+              <span className="text-gray-400 dark:text-gray-500"> ({displayed.length} shown after text filter)</span>
+            )}
+            {sourceCount && <span className="ml-1 text-gray-400 dark:text-gray-500">· {sourceCount}</span>}
             {durationMs > 0 && (
-              <span className="ml-2 text-xs text-gray-400">in {(durationMs / 1000).toFixed(1)}s</span>
+              <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">in {(durationMs / 1000).toFixed(1)}s</span>
+            )}
+            {totalDeduped > jobs.length && (
+              <span className="ml-2 text-xs font-medium text-amber-600 dark:text-amber-400">
+                · {totalDeduped - jobs.length} hidden by your filters
+              </span>
             )}
           </p>
         </div>

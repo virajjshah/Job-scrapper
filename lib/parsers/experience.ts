@@ -54,24 +54,25 @@ const SENIOR_LEVEL =
 const MID_LEVEL = /\b(?:mid[\s-]level|intermediate|associate)\b/i;
 
 function tryExtract(text: string): { years: number | null; display: string } | null {
-  // Range: "2–4 years"
+  // Range: "2–4 years" — use lo (minimum) so the job isn't filtered out for
+  // users who meet the minimum requirement (e.g. expMax=3 should pass "3–5 yrs")
   const rangeMatch = text.match(RANGE_RE);
   if (rangeMatch) {
     const lo = parseInt(rangeMatch[1], 10);
     const hi = parseInt(rangeMatch[2], 10);
     if (!isNaN(lo) && !isNaN(hi) && lo <= hi && hi <= 30) {
-      return { years: Math.round((lo + hi) / 2), display: `${lo}–${hi} yrs` };
+      return { years: lo, display: `${lo}–${hi} yrs` };
     }
   }
 
-  // Bullet range: "• 3-5 years experience"
+  // Bullet range: "• 3-5 years experience" — same, use lo
   const bulletMatch = text.match(BULLET_RE);
   if (bulletMatch) {
     const lo = parseInt(bulletMatch[1], 10);
     const hi = bulletMatch[2] ? parseInt(bulletMatch[2], 10) : lo;
     if (!isNaN(lo) && lo <= 30) {
       const display = hi > lo ? `${lo}–${hi} yrs` : `${lo}+ yrs`;
-      return { years: Math.round((lo + hi) / 2), display };
+      return { years: lo, display };
     }
   }
 
