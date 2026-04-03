@@ -15,6 +15,8 @@ const HOURLY_PATTERNS = [
   /\$[\d,]+(?:\.\d{1,2})?\s*(?:an?|per)\s+hour/i,
   // 25 - 30 per hour (no $)
   /\b[\d,]+(?:\.\d{1,2})?\s*(?:[-\u2013\u2014]|to)\s*[\d,]+(?:\.\d{1,2})?\s*\/?(?:per\s+)?h(?:our|r)\b/i,
+  // CA$25/hr
+  /CA\$[\d,]+(?:\.\d{1,2})?(?:\s*[-\u2013\u2014]\s*CA\$[\d,]+(?:\.\d{1,2})?)?\s*\/h(?:r|our)/i,
 ];
 
 // Range separator: dash / en-dash / em-dash / "to"
@@ -25,6 +27,8 @@ function numTok(prefix = '\\$?') {
 }
 
 const RANGE_PATTERNS: RegExp[] = [
+  // CA$70K/yr – CA$75K/yr  (LinkedIn card chip format)
+  /CA\$\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hour|\/hr)?\s*(?:[-\u2013\u2014]|to)\s*CA\$?\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hour|\/hr)?/i,
   // $60K – $80K  |  $60,000 – $80,000  |  $60K – 80K  |  $60–65/hr
   new RegExp(`\\${numTok('\\$')}${SEP}\\$?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*(K|k)?`, 'i'),
   // between $60K and $80K  |  from $60,000 to $80,000
@@ -36,7 +40,8 @@ const RANGE_PATTERNS: RegExp[] = [
 ];
 
 const SINGLE_VALUE_PATTERNS: RegExp[] = [
-  // $80,000/yr or $80K or CAD $80,000
+  // CA$80K/yr or $80,000/yr or CAD $80K
+  /CA\$\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hr|\/hour)?/i,
   /(?:CAD\s*)?\$\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k|M|m)?(?:\s*(?:\/yr|\/year|per year|annually|\/hr|\/hour|per hour))?/i,
 ];
 
@@ -67,8 +72,9 @@ export function parseSalary(text: string): SalaryInfo | null {
 
   const { hasCommission, note: commissionNote } = detectCommission(text);
 
-  // Detect if hourly
-  const isHourly = HOURLY_PATTERNS.some((p) => p.test(text));
+  // Detect if hourly — but /yr suffix overrides (CA$70K/yr is annual, not hourly)
+  const hasYearSuffix = /\/yr\b|\/year\b|\bper\s+year\b|\bannually\b|\bper\s+annum\b/i.test(text);
+  const isHourly = !hasYearSuffix && HOURLY_PATTERNS.some((p) => p.test(text));
 
   // Try to extract a range first
   for (const pattern of RANGE_PATTERNS) {
