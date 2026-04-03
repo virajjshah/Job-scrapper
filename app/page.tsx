@@ -7,6 +7,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import type { ScrapeResult, SearchFilters } from '@/types/job';
 import { Briefcase, AlertCircle, X, CheckCircle, ExternalLink } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 type ToastState = { type: 'success' | 'error'; message: string; url?: string } | null;
 
@@ -126,15 +127,15 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm z-20 sticky top-0">
+      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm z-20 sticky top-0">
         <div className="max-w-screen-2xl mx-auto px-4 py-3 flex items-center gap-3">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <Briefcase size={18} className="text-white" />
             </div>
             <div>
-              <h1 className="text-base font-bold text-gray-900 leading-none">Job Scraper</h1>
-              <p className="text-xs text-gray-500 leading-none mt-0.5">Toronto / GTA</p>
+              <h1 className="text-base font-bold text-gray-900 dark:text-gray-100 leading-none">Job Scraper</h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400 leading-none mt-0.5">Toronto / GTA</p>
             </div>
           </div>
           <div className="flex gap-2 ml-4">
@@ -151,7 +152,7 @@ export default function HomePage() {
               </span>
             ))}
           </div>
-          <div className="ml-auto flex items-center gap-2 text-xs text-gray-500">
+          <div className="ml-auto flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             <span className="hidden sm:inline">No login required · Public data only</span>
           </div>
         </div>
@@ -160,14 +161,14 @@ export default function HomePage() {
       {/* Main layout */}
       <div className="flex flex-1 max-w-screen-2xl mx-auto w-full">
         {/* Sidebar */}
-        <aside className="w-80 min-w-[280px] max-w-xs flex-shrink-0 bg-white border-r border-gray-200 flex flex-col">
+        <aside className="w-80 min-w-[280px] max-w-xs flex-shrink-0 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
           <div className="flex-1 p-4 overflow-y-auto">
             <SearchPanel onSearch={handleSearch} isLoading={isLoading} />
           </div>
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 flex flex-col overflow-hidden p-4 gap-4 min-w-0">
+        <main className="flex-1 flex flex-col overflow-hidden p-4 gap-4 min-w-0 bg-gray-50 dark:bg-gray-950">
           {isLoading && <LoadingSpinner />}
 
           {!isLoading && !result && <EmptyState />}
@@ -185,13 +186,15 @@ export default function HomePage() {
         </main>
       </div>
 
+      <ThemeToggle />
+
       {/* Toast notification */}
       {toast && (
         <div
           className={`fixed bottom-5 right-5 z-50 flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border max-w-sm text-sm animate-in slide-in-from-bottom-2 ${
             toast.type === 'success'
-              ? 'bg-white border-green-200 text-gray-800'
-              : 'bg-white border-red-200 text-gray-800'
+              ? 'bg-white dark:bg-gray-800 border-green-200 dark:border-green-800 text-gray-800 dark:text-gray-100'
+              : 'bg-white dark:bg-gray-800 border-red-200 dark:border-red-800 text-gray-800 dark:text-gray-100'
           }`}
         >
           {toast.type === 'success' ? (

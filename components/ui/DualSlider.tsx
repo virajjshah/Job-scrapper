@@ -64,13 +64,13 @@ export function DualSlider({ min, max, step = 1, value, onChange, formatLabel, l
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-between text-xs text-gray-500">
+      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
         <span>{formatLabel ? formatLabel(lo) : lo}</span>
         <span>{formatLabel ? formatLabel(hi) : hi}{hi >= max ? '+' : ''}</span>
       </div>
       <div className="relative h-5 flex items-center">
         {/* Track */}
-        <div className="absolute w-full h-1.5 bg-gray-200 rounded-full" />
+        <div className="absolute w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full" />
         {/* Filled range */}
         <div
           className="absolute h-1.5 bg-blue-500 rounded-full pointer-events-none"

@@ -31,7 +31,7 @@ const COLUMNS: ColDef[] = [
         href={job.sourceUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="font-medium text-blue-700 hover:text-blue-900 hover:underline"
+        className="font-medium text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 hover:underline"
       >
         {job.title}
       </a>
@@ -41,7 +41,7 @@ const COLUMNS: ColDef[] = [
   {
     label: 'Company',
     field: 'company',
-    render: (job) => <span className="text-gray-900">{job.company}</span>,
+    render: (job) => <span className="text-gray-900 dark:text-gray-200">{job.company}</span>,
     className: 'min-w-[140px]',
   },
   {
@@ -49,7 +49,7 @@ const COLUMNS: ColDef[] = [
     field: 'location',
     render: (job) => (
       <div className="flex flex-col gap-1">
-        <span className="text-sm text-gray-700">{job.location}</span>
+        <span className="text-sm text-gray-700 dark:text-gray-300">{job.location}</span>
         {job.workType !== 'Any' && (
           <Badge label={job.workType} variant="workType" workType={job.workType} />
         )}
@@ -62,7 +62,7 @@ const COLUMNS: ColDef[] = [
     field: 'salary',
     render: (job) => (
       <div className="flex flex-col gap-1">
-        <span className={clsx('text-sm', job.hasCommission ? 'text-amber-700 font-medium' : 'text-gray-700')}>
+        <span className={clsx('text-sm', job.hasCommission ? 'text-amber-700 dark:text-amber-400 font-medium' : 'text-gray-700 dark:text-gray-300')}>
           {job.salaryDisplay}
         </span>
         {job.salary?.isEstimated && (
@@ -96,7 +96,7 @@ const COLUMNS: ColDef[] = [
   {
     label: 'Posted',
     field: 'datePostedRaw',
-    render: (job) => <span className="text-sm text-gray-600 whitespace-nowrap">{job.datePosted}</span>,
+    render: (job) => <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">{job.datePosted}</span>,
     className: 'min-w-[100px]',
   },
   {
@@ -123,7 +123,7 @@ const COLUMNS: ColDef[] = [
         href={job.applyUrl ?? job.sourceUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium border border-blue-200 hover:border-blue-400 rounded px-2 py-1 transition-colors"
+        className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium border border-blue-200 dark:border-blue-800 hover:border-blue-400 dark:hover:border-blue-600 rounded px-2 py-1 transition-colors"
       >
         {job.applyUrl ? 'Apply' : 'View'} <ExternalLink size={11} />
       </a>
@@ -210,8 +210,8 @@ export function ResultsTable({ jobs, totalBySource, errors, durationMs, onExport
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex-1 min-w-[200px]">
-          <p className="text-sm text-gray-600">
-            <span className="font-semibold text-gray-900">{displayed.length} jobs found</span>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            <span className="font-semibold text-gray-900 dark:text-gray-100">{displayed.length} jobs found</span>
             {sourceCount && <span className="ml-1 text-gray-400">({sourceCount})</span>}
             {durationMs > 0 && (
               <span className="ml-2 text-xs text-gray-400">in {(durationMs / 1000).toFixed(1)}s</span>
@@ -224,10 +224,10 @@ export function ResultsTable({ jobs, totalBySource, errors, durationMs, onExport
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter results…"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
+          className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
         />
 
-        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
           <input type="checkbox" checked={hideDuplicates} readOnly className="rounded border-gray-300 text-blue-600" />
           Hide duplicates
         </label>
@@ -257,17 +257,17 @@ export function ResultsTable({ jobs, totalBySource, errors, durationMs, onExport
       ))}
 
       {/* Table */}
-      <div className="flex-1 overflow-auto rounded-lg border border-gray-200 shadow-sm">
+      <div className="flex-1 overflow-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
         <table className="min-w-full text-sm border-collapse">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+            <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
               {COLUMNS.map((col) => (
                 <th
                   key={col.label}
                   onClick={() => handleSort(col.field)}
                   className={clsx(
-                    'px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap',
-                    col.field ? 'cursor-pointer hover:bg-gray-100 select-none' : '',
+                    'px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap',
+                    col.field ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none' : '',
                     col.className
                   )}
                 >
@@ -279,10 +279,10 @@ export function ResultsTable({ jobs, totalBySource, errors, durationMs, onExport
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
             {displayed.length === 0 ? (
               <tr>
-                <td colSpan={COLUMNS.length} className="px-4 py-12 text-center text-gray-400 text-sm">
+                <td colSpan={COLUMNS.length} className="px-4 py-12 text-center text-gray-400 dark:text-gray-500 text-sm">
                   No jobs found. Try adjusting your search criteria.
                 </td>
               </tr>
@@ -291,8 +291,10 @@ export function ResultsTable({ jobs, totalBySource, errors, durationMs, onExport
                 <tr
                   key={job.id}
                   className={clsx(
-                    'hover:bg-gray-50 transition-colors',
-                    job.hasCommission ? 'bg-amber-50 hover:bg-amber-100' : ''
+                    'hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors',
+                    job.hasCommission
+                      ? 'bg-amber-50 dark:bg-amber-900/10 hover:bg-amber-100 dark:hover:bg-amber-900/20'
+                      : 'dark:bg-gray-900'
                   )}
                 >
                   {COLUMNS.map((col) => (

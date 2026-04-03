@@ -24,13 +24,19 @@ function formatExp(v: number): string {
   return `${v} yr${v === 1 ? '' : 's'}`;
 }
 
-/** Convert slider value (0–30) to human label */
 function formatDateDays(v: number): string {
   if (v === 0) return 'Any time';
   if (v === 1) return '24 hrs';
   if (v % 7 === 0) return `${v / 7} wk${v / 7 > 1 ? 's' : ''}`;
   return `${v} days`;
 }
+
+const labelCls = 'block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1';
+const inputCls =
+  'w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm ' +
+  'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ' +
+  'placeholder-gray-400 dark:placeholder-gray-500 ' +
+  'focus:outline-none focus:ring-2 focus:ring-blue-500';
 
 export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
   const [filters, setFilters] = useState<SearchFilters>(DEFAULT_FILTERS);
@@ -87,32 +93,32 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 h-full overflow-y-auto pr-1">
       {/* Keywords */}
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">Job Title / Keywords</label>
+        <label className={labelCls}>Job Title / Keywords</label>
         <input
           type="text"
           value={filters.keywords}
           onChange={(e) => update('keywords', e.target.value)}
           placeholder="e.g. Marketing Manager, Data Analyst"
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={inputCls}
           required
         />
       </div>
 
       {/* Location */}
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">Location</label>
+        <label className={labelCls}>Location</label>
         <input
           type="text"
           value={filters.location}
           onChange={(e) => update('location', e.target.value)}
           placeholder="Toronto, ON"
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={inputCls}
         />
       </div>
 
       {/* Work Type */}
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">Work Type</label>
+        <label className={labelCls}>Work Type</label>
         <div className="flex gap-1 flex-wrap">
           {WORK_TYPES.map((type) => (
             <button
@@ -123,7 +129,7 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
                 'px-3 py-1 text-xs rounded-full border font-medium transition-colors',
                 filters.workType === type
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400'
               )}
             >
               {type}
@@ -132,22 +138,21 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
         </div>
       </div>
 
-      {/* Date Posted — custom slider */}
+      {/* Date Posted */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="text-sm font-semibold text-gray-700">Date Posted</label>
+          <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Date Posted</label>
           <span
             className={clsx(
               'text-xs font-semibold px-2 py-0.5 rounded-full',
               filters.datePostedDays === 0
-                ? 'bg-gray-100 text-gray-500'
-                : 'bg-blue-100 text-blue-700'
+                ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
             )}
           >
             {formatDateDays(filters.datePostedDays)}
           </span>
         </div>
-        {/* Quick presets */}
         <div className="flex gap-1 mb-2 flex-wrap">
           {[0, 1, 2, 3, 7, 14, 30].map((d) => (
             <button
@@ -158,14 +163,13 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
                 'px-2 py-0.5 text-xs rounded border transition-colors',
                 filters.datePostedDays === d
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-500 border-gray-300 hover:border-blue-400'
+                  : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:border-blue-400'
               )}
             >
               {d === 0 ? 'Any' : d === 1 ? '24h' : d === 2 ? '48h' : d === 3 ? '72h' : d === 7 ? '1wk' : d === 14 ? '2wk' : '30d'}
             </button>
           ))}
         </div>
-        {/* Fine-grain slider: 0–30 days */}
         <input
           type="range"
           min={0}
@@ -174,9 +178,9 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
           value={filters.datePostedDays}
           onChange={(e) => update('datePostedDays', Number(e.target.value))}
           aria-label="Max days since posted"
-          className="w-full h-1.5 appearance-none bg-gray-200 rounded-full cursor-pointer accent-blue-600"
+          className="w-full h-1.5 appearance-none bg-gray-200 dark:bg-gray-700 rounded-full cursor-pointer accent-blue-600"
         />
-        <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+        <div className="flex justify-between text-xs text-gray-400 dark:text-gray-500 mt-0.5">
           <span>Any time</span>
           <span>30 days</span>
         </div>
@@ -184,15 +188,15 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
 
       {/* Employment Type */}
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">Employment Type</label>
+        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Employment Type</label>
         <div className="flex flex-col gap-1.5">
           {EMP_TYPES.map((type) => (
-            <label key={type} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+            <label key={type} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
               <input
                 type="checkbox"
                 checked={filters.employmentTypes.includes(type)}
                 onChange={() => toggleEmpType(type)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
               />
               {type}
             </label>
@@ -204,7 +208,7 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
       <button
         type="button"
         onClick={() => setShowAdvanced((v) => !v)}
-        className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium"
+        className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
       >
         {showAdvanced ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         {showAdvanced ? 'Hide' : 'Show'} advanced filters
@@ -214,7 +218,7 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
         <>
           {/* Salary Range */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
               Salary Range (Annual CAD)
             </label>
             <DualSlider
@@ -228,32 +232,32 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
             />
             <div className="flex gap-2 mt-2">
               <div className="flex-1">
-                <label className="text-xs text-gray-500">Min</label>
+                <label className="text-xs text-gray-500 dark:text-gray-400">Min</label>
                 <input
                   type="number"
                   value={filters.salaryMin}
                   onChange={(e) => update('salaryMin', Math.max(0, Number(e.target.value)))}
-                  className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   min={0} max={300000} step={1000}
                 />
               </div>
               <div className="flex-1">
-                <label className="text-xs text-gray-500">Max</label>
+                <label className="text-xs text-gray-500 dark:text-gray-400">Max</label>
                 <input
                   type="number"
                   value={filters.salaryMax}
                   onChange={(e) => update('salaryMax', Math.min(300000, Number(e.target.value)))}
-                  className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   min={0} max={300000} step={1000}
                 />
               </div>
             </div>
-            <label className="flex items-center gap-2 mt-2 cursor-pointer text-sm text-gray-700">
+            <label className="flex items-center gap-2 mt-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
               <input
                 type="checkbox"
                 checked={filters.showNoSalary}
                 onChange={(e) => update('showNoSalary', e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
               />
               Show jobs with no salary listed
             </label>
@@ -261,7 +265,7 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
 
           {/* Experience Range */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
               Years of Experience Required
             </label>
             <DualSlider
@@ -273,12 +277,12 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
               onChange={([min, max]) => setFilters((p) => ({ ...p, expMin: min, expMax: max }))}
               formatLabel={formatExp}
             />
-            <label className="flex items-center gap-2 mt-2 cursor-pointer text-sm text-gray-700">
+            <label className="flex items-center gap-2 mt-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
               <input
                 type="checkbox"
                 checked={filters.showNoExp}
                 onChange={(e) => update('showNoExp', e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
               />
               Show jobs with no experience listed
             </label>
@@ -286,7 +290,7 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
 
           {/* Industry */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Industry / Sector</label>
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Industry / Sector</label>
             <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
               {INDUSTRIES.map((ind) => (
                 <button
@@ -297,7 +301,7 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
                     'px-2 py-0.5 text-xs rounded-full border transition-colors',
                     filters.industries.includes(ind)
                       ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                      : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400'
                   )}
                 >
                   {ind}
@@ -308,9 +312,9 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
 
           {/* Custom Career Pages */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
               Custom Career Pages{' '}
-              <span className="font-normal text-gray-500">({filters.customUrls.length}/5)</span>
+              <span className="font-normal text-gray-500 dark:text-gray-400">({filters.customUrls.length}/5)</span>
             </label>
             <div className="flex gap-2">
               <input
@@ -318,21 +322,21 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
                 value={newUrl}
                 onChange={(e) => setNewUrl(e.target.value)}
                 placeholder="https://company.com/careers"
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomUrl())}
               />
               <button
                 type="button"
                 onClick={addCustomUrl}
                 disabled={filters.customUrls.length >= 5}
-                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-300 disabled:opacity-50 transition-colors"
+                className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 transition-colors"
               >
                 <Plus size={14} />
               </button>
             </div>
             {filters.customUrls.map((url, i) => (
-              <div key={i} className="flex items-center gap-2 mt-1.5 bg-gray-50 rounded px-2 py-1">
-                <span className="text-xs text-gray-600 flex-1 truncate">{url}</span>
+              <div key={i} className="flex items-center gap-2 mt-1.5 bg-gray-50 dark:bg-gray-800 rounded px-2 py-1">
+                <span className="text-xs text-gray-600 dark:text-gray-400 flex-1 truncate">{url}</span>
                 <button
                   type="button"
                   onClick={() => removeCustomUrl(i)}
@@ -353,7 +357,7 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
         className={clsx(
           'w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all',
           isLoading || !filters.keywords.trim()
-            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed'
             : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md'
         )}
       >
