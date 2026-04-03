@@ -2,9 +2,10 @@ import type { Job, SearchFilters } from '@/types/job';
 
 function dateWithinDays(date: Date | string | null, maxDays: number): boolean {
   if (maxDays === 0) return true;
-  if (!date) return false;
+  // Unknown/unparseable date — show the job rather than burying it
+  if (!date) return true;
   const d = date instanceof Date ? date : new Date(date);
-  if (isNaN(d.getTime())) return false;
+  if (isNaN(d.getTime())) return true;
   return (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24) <= maxDays;
 }
 

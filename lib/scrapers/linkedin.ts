@@ -108,10 +108,15 @@ export async function scrapeLinkedIn(browser: Browser, filters: SearchFilters): 
           .filter((t) => t.length > 0 && t.length < 60);
 
         // Date / Reposted
-        // LinkedIn uses <time class="job-search-card__listdate--new"> for reposted jobs
+        // LinkedIn marks reposted jobs two ways:
+        //  1. <time class="job-search-card__listdate--new">Reposted 2 days ago</time>
+        //  2. "Reposted X days ago" anywhere in the card subtitle/metadata text
         const timeEl = li.querySelector('time');
         const dateText = timeEl?.textContent?.trim() ?? '';
-        const isReposted = /\breposted\b/i.test(dateText) || timeEl?.className?.includes('--new') === true;
+        const isReposted =
+          /\breposted\b/i.test(dateText) ||
+          timeEl?.className?.includes('--new') === true ||
+          /\breposted\b/i.test(li.textContent ?? '');
 
         result.push({ href, jobId, title, company, location, salary, benefits, isReposted, dateText });
       }
