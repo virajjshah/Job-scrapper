@@ -67,6 +67,10 @@ export function detectFrench(text: string): boolean {
   return matches >= 3;
 }
 
+export function detectReposted(text: string): boolean {
+  return /\breposted\b/i.test(text);
+}
+
 export function buildJobFromRaw(params: {
   title: string;
   company: string;
@@ -76,8 +80,14 @@ export function buildJobFromRaw(params: {
   sourceUrl: string;
   source: Job['source'];
   employmentTypeText?: string;
+  applyUrl?: string | null;
+  isReposted?: boolean;
 }): Job {
-  const { title, company, location, description, datePostedText, sourceUrl, source, employmentTypeText } = params;
+  const {
+    title, company, location, description, datePostedText,
+    sourceUrl, source, employmentTypeText,
+    applyUrl = null, isReposted = false,
+  } = params;
 
   const salaryInfo = parseSalary(description);
   const { years, display: expDisplay } = parseExperience(description);
@@ -86,6 +96,7 @@ export function buildJobFromRaw(params: {
     ? detectEmploymentType(employmentTypeText)
     : detectEmploymentType(description);
   const isFrench = detectFrench(description);
+  const reposted = isReposted || detectReposted(datePostedText);
 
   const datePostedRaw = parseRelativeDate(datePostedText);
 
@@ -104,9 +115,11 @@ export function buildJobFromRaw(params: {
     datePostedRaw,
     source,
     sourceUrl,
+    applyUrl,
     description,
     hasCommission: salaryInfo?.hasCommission ?? false,
     isLanguageFrench: isFrench,
+    isReposted: reposted,
   };
 }
 
@@ -140,7 +153,6 @@ function parseRelativeDate(text: string): Date | null {
     return d;
   }
 
-  // Try parsing as ISO or human date
   const parsed = new Date(text);
   if (!isNaN(parsed.getTime())) return parsed;
 
@@ -162,16 +174,12 @@ function formatRelativeDate(date: Date | null): string {
   return `${Math.floor(diffDays / 30)} months ago`;
 }
 
-export function filterByDatePosted(date: Date | null, filter: SearchFilters['datePosted']): boolean {
-  if (filter === 'Any time') return true;
+/** Returns true if job passes the datePostedDays filter (0 = any time). */
+export function filterByDatePostedDays(date: Date | string | null, maxDays: number): boolean {
+  if (maxDays === 0) return true;
   if (!date) return false;
-
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffHours = diffMs / (1000 * 60 * 60);
-
-  if (filter === 'Past 24h') return diffHours <= 24;
-  if (filter === 'Past week') return diffHours <= 24 * 7;
-  if (filter === 'Past month') return diffHours <= 24 * 30;
-  return true;
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return false;
+  const diffDays = (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24);
+  return diffDays <= maxDays;
 }

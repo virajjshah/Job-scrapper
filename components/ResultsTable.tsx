@@ -106,16 +106,26 @@ const COLUMNS: ColDef[] = [
     className: 'min-w-[90px]',
   },
   {
+    label: 'Reposted',
+    field: 'isReposted',
+    render: (job) => (
+      job.isReposted
+        ? <span className="inline-block text-xs font-medium text-amber-700 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5">Yes</span>
+        : <span className="text-xs text-gray-400">No</span>
+    ),
+    className: 'min-w-[80px]',
+  },
+  {
     label: 'Link',
     field: null,
     render: (job) => (
       <a
-        href={job.sourceUrl}
+        href={job.applyUrl ?? job.sourceUrl}
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium border border-blue-200 hover:border-blue-400 rounded px-2 py-1 transition-colors"
       >
-        View <ExternalLink size={11} />
+        {job.applyUrl ? 'Apply' : 'View'} <ExternalLink size={11} />
       </a>
     ),
     className: 'min-w-[70px]',
@@ -137,6 +147,7 @@ function getSortValue(job: Job, field: SortField): string | number | null {
       return isNaN(ts) ? 0 : ts;
     }
     case 'source': return job.source.toLowerCase();
+    case 'isReposted': return job.isReposted ? 1 : 0;
     default: return '';
   }
 }

@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { Search, Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { DualSlider } from './ui/DualSlider';
 import { clsx } from 'clsx';
-import type { SearchFilters, WorkType, EmploymentType, DatePosted } from '@/types/job';
+import type { SearchFilters, WorkType, EmploymentType } from '@/types/job';
 import { INDUSTRIES, DEFAULT_FILTERS } from '@/types/job';
 
 interface SearchPanelProps {
@@ -14,7 +14,6 @@ interface SearchPanelProps {
 
 const WORK_TYPES: WorkType[] = ['Any', 'Remote', 'Hybrid', 'On-site'];
 const EMP_TYPES: EmploymentType[] = ['Full-time', 'Part-time', 'Contract'];
-const DATE_OPTIONS: DatePosted[] = ['Any time', 'Past 24h', 'Past week', 'Past month'];
 
 function formatSalary(v: number): string {
   if (v >= 1000) return `$${(v / 1000).toFixed(0)}K`;
@@ -23,6 +22,14 @@ function formatSalary(v: number): string {
 
 function formatExp(v: number): string {
   return `${v} yr${v === 1 ? '' : 's'}`;
+}
+
+/** Convert slider value (0–30) to human label */
+function formatDateDays(v: number): string {
+  if (v === 0) return 'Any time';
+  if (v === 1) return '24 hrs';
+  if (v % 7 === 0) return `${v / 7} wk${v / 7 > 1 ? 's' : ''}`;
+  return `${v} days`;
 }
 
 export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
@@ -56,7 +63,7 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
     const trimmed = newUrl.trim();
     if (!trimmed || filters.customUrls.length >= 5) return;
     try {
-      new URL(trimmed); // validate URL
+      new URL(trimmed);
       setFilters((prev) => ({ ...prev, customUrls: [...prev.customUrls, trimmed] }));
       setNewUrl('');
     } catch {
@@ -125,18 +132,54 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
         </div>
       </div>
 
-      {/* Date Posted */}
+      {/* Date Posted — custom slider */}
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1">Date Posted</label>
-        <select
-          value={filters.datePosted}
-          onChange={(e) => update('datePosted', e.target.value as DatePosted)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-        >
-          {DATE_OPTIONS.map((opt) => (
-            <option key={opt} value={opt}>{opt}</option>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-sm font-semibold text-gray-700">Date Posted</label>
+          <span
+            className={clsx(
+              'text-xs font-semibold px-2 py-0.5 rounded-full',
+              filters.datePostedDays === 0
+                ? 'bg-gray-100 text-gray-500'
+                : 'bg-blue-100 text-blue-700'
+            )}
+          >
+            {formatDateDays(filters.datePostedDays)}
+          </span>
+        </div>
+        {/* Quick presets */}
+        <div className="flex gap-1 mb-2 flex-wrap">
+          {[0, 1, 2, 3, 7, 14, 30].map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => update('datePostedDays', d)}
+              className={clsx(
+                'px-2 py-0.5 text-xs rounded border transition-colors',
+                filters.datePostedDays === d
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-500 border-gray-300 hover:border-blue-400'
+              )}
+            >
+              {d === 0 ? 'Any' : d === 1 ? '24h' : d === 2 ? '48h' : d === 3 ? '72h' : d === 7 ? '1wk' : d === 14 ? '2wk' : '30d'}
+            </button>
           ))}
-        </select>
+        </div>
+        {/* Fine-grain slider: 0–30 days */}
+        <input
+          type="range"
+          min={0}
+          max={30}
+          step={1}
+          value={filters.datePostedDays}
+          onChange={(e) => update('datePostedDays', Number(e.target.value))}
+          aria-label="Max days since posted"
+          className="w-full h-1.5 appearance-none bg-gray-200 rounded-full cursor-pointer accent-blue-600"
+        />
+        <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+          <span>Any time</span>
+          <span>30 days</span>
+        </div>
       </div>
 
       {/* Employment Type */}
@@ -191,9 +234,7 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
                   value={filters.salaryMin}
                   onChange={(e) => update('salaryMin', Math.max(0, Number(e.target.value)))}
                   className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  min={0}
-                  max={300000}
-                  step={1000}
+                  min={0} max={300000} step={1000}
                 />
               </div>
               <div className="flex-1">
@@ -203,9 +244,7 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
                   value={filters.salaryMax}
                   onChange={(e) => update('salaryMax', Math.min(300000, Number(e.target.value)))}
                   className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  min={0}
-                  max={300000}
-                  step={1000}
+                  min={0} max={300000} step={1000}
                 />
               </div>
             </div>

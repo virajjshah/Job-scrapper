@@ -1,58 +1,135 @@
-const EXPERIENCE_PATTERNS = [
-  // "3+ years", "3+ years of experience"
-  /(\d+)\+\s*(?:years?|yrs?)(?:\s+of)?(?:\s+(?:relevant\s+)?(?:experience|exp\.?))?/i,
-  // "minimum 5 years"
-  /(?:minimum|min\.?|at\s+least)\s+(\d+)\s+(?:years?|yrs?)/i,
-  // "2 to 4 years", "2-4 years", "2–4 years"
-  /(\d+)\s*(?:to|-|–)\s*(\d+)\s+(?:years?|yrs?)(?:\s+of)?(?:\s+(?:relevant\s+)?(?:experience|exp\.?))?/i,
-  // "5 years of experience"
-  /(\d+)\s+(?:years?|yrs?)\s+of(?:\s+relevant)?\s+(?:experience|exp\.?)/i,
-  // "experience: 3 years"
-  /experience[:\s]+(\d+)\s+(?:years?|yrs?)/i,
-  // "3 year experience"
-  /(\d+)[- ]year(?:s)?\s+(?:of\s+)?(?:relevant\s+)?experience/i,
-  // "entry level" / "junior" → 0, "senior" → 5
+/**
+ * Experience parser — scans full job description text including requirements
+ * sections buried deep in postings.
+ */
+
+// Section headers that commonly precede experience requirements
+const SECTION_HEADERS = [
+  'requirements?',
+  'qualifications?',
+  'what you(?:\'ll)? bring',
+  'what we(?:\'re)? looking for',
+  'must[- ]have',
+  'preferred',
+  'experience(?:\\s+required)?',
+  'skills? (?:and|&) experience',
+  'about you',
+  'who you are',
+  'minimum qualifications?',
 ];
 
-const ENTRY_LEVEL = /\b(?:entry[\s-]level|junior|no experience(?:\s+required)?|recent graduate|new grad)\b/i;
-const SENIOR_LEVEL = /\b(?:senior|lead|principal|staff|7\+|8\+|9\+|10\+)\b/i;
-const MID_LEVEL = /\b(?:mid[\s-]level|intermediate)\b/i;
+const SECTION_RE = new RegExp(
+  `(?:${SECTION_HEADERS.join('|')})[:\\s]*([\\s\\S]{0,600})`,
+  'i'
+);
+
+// Core numeric patterns (order matters — most specific first)
+const RANGE_RE =
+  /(\d+)\s*(?:to|-|–|\/)\s*(\d+)\s+(?:years?|yrs?)(?:\s+of)?(?:\s+(?:relevant\s+|related\s+)?(?:work\s+)?(?:experience|exp\.?))?/i;
+
+const PLUS_RE =
+  /(\d+)\s*\+\s*(?:years?|yrs?)(?:\s+of)?(?:\s+(?:relevant\s+|related\s+)?(?:work\s+)?(?:experience|exp\.?))?/i;
+
+const MINIMUM_RE =
+  /(?:minimum|min\.?|at\s+least)\s+(\d+)\s+(?:years?|yrs?)/i;
+
+const YEARS_OF_RE =
+  /(\d+)\s+(?:years?|yrs?)\s+of(?:\s+relevant|\s+related|\s+professional|\s+hands[- ]on)?\s+(?:work\s+)?(?:experience|exp\.?)/i;
+
+const EXPERIENCE_COLON_RE =
+  /(?:experience|exp\.?)[:\s]+(\d+)\s*\+?\s*(?:years?|yrs?)/i;
+
+const YEAR_ADJ_RE =
+  /(\d+)[- ]year(?:s)?\s+(?:of\s+)?(?:relevant\s+|related\s+)?(?:work\s+)?experience/i;
+
+// Bullet-point prefixed patterns common in job postings:
+// "• 3+ years experience", "- 5 years of …", "* 2-4 years …"
+const BULLET_RE =
+  /[•\-*]\s*(\d+)\s*(?:\+\s*)?(?:to|-|–)?\s*(\d+)?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:experience|exp\.?)/i;
+
+const ENTRY_LEVEL =
+  /\b(?:entry[\s-]level|junior|no experience(?:\s+required)?|recent graduate|new grad|internship|co-?op)\b/i;
+const SENIOR_LEVEL =
+  /\b(?:senior|lead|principal|staff engineer|7\s*\+|8\s*\+|9\s*\+|10\s*\+)\b/i;
+const MID_LEVEL = /\b(?:mid[\s-]level|intermediate|associate)\b/i;
+
+function tryExtract(text: string): { years: number | null; display: string } | null {
+  // Range: "2–4 years"
+  const rangeMatch = text.match(RANGE_RE);
+  if (rangeMatch) {
+    const lo = parseInt(rangeMatch[1], 10);
+    const hi = parseInt(rangeMatch[2], 10);
+    if (!isNaN(lo) && !isNaN(hi) && lo <= hi && hi <= 30) {
+      return { years: Math.round((lo + hi) / 2), display: `${lo}–${hi} yrs` };
+    }
+  }
+
+  // Bullet range: "• 3-5 years experience"
+  const bulletMatch = text.match(BULLET_RE);
+  if (bulletMatch) {
+    const lo = parseInt(bulletMatch[1], 10);
+    const hi = bulletMatch[2] ? parseInt(bulletMatch[2], 10) : lo;
+    if (!isNaN(lo) && lo <= 30) {
+      const display = hi > lo ? `${lo}–${hi} yrs` : `${lo}+ yrs`;
+      return { years: Math.round((lo + hi) / 2), display };
+    }
+  }
+
+  // Plus: "3+ years"
+  const plusMatch = text.match(PLUS_RE);
+  if (plusMatch) {
+    const y = parseInt(plusMatch[1], 10);
+    if (!isNaN(y) && y <= 30) return { years: y, display: `${y}+ yrs` };
+  }
+
+  // Minimum: "minimum 3 years"
+  const minMatch = text.match(MINIMUM_RE);
+  if (minMatch) {
+    const y = parseInt(minMatch[1], 10);
+    if (!isNaN(y) && y <= 30) return { years: y, display: `${y}+ yrs` };
+  }
+
+  // "N years of experience"
+  const yofMatch = text.match(YEARS_OF_RE);
+  if (yofMatch) {
+    const y = parseInt(yofMatch[1], 10);
+    if (!isNaN(y) && y <= 30) return { years: y, display: `${y} yrs` };
+  }
+
+  // "experience: N years"
+  const ecMatch = text.match(EXPERIENCE_COLON_RE);
+  if (ecMatch) {
+    const y = parseInt(ecMatch[1], 10);
+    if (!isNaN(y) && y <= 30) return { years: y, display: `${y} yrs` };
+  }
+
+  // "N-year experience"
+  const yaMatch = text.match(YEAR_ADJ_RE);
+  if (yaMatch) {
+    const y = parseInt(yaMatch[1], 10);
+    if (!isNaN(y) && y <= 30) return { years: y, display: `${y} yrs` };
+  }
+
+  return null;
+}
 
 export function parseExperience(text: string): { years: number | null; display: string } {
   if (!text || text.trim().length === 0) {
     return { years: null, display: 'Not specified' };
   }
 
-  // Try range pattern first: "2–4 years"
-  const rangePattern = /(\d+)\s*(?:to|-|–)\s*(\d+)\s+(?:years?|yrs?)(?:\s+of)?(?:\s+(?:relevant\s+)?(?:experience|exp\.?))?/i;
-  const rangeMatch = text.match(rangePattern);
-  if (rangeMatch) {
-    const min = parseInt(rangeMatch[1], 10);
-    const max = parseInt(rangeMatch[2], 10);
-    const avg = Math.round((min + max) / 2);
-    return { years: avg, display: `${min}–${max} yrs` };
+  // 1. Try to find the requirements/qualifications section first for precision
+  const sectionMatch = text.match(SECTION_RE);
+  if (sectionMatch) {
+    const result = tryExtract(sectionMatch[1]);
+    if (result) return result;
   }
 
-  // Try plus pattern: "3+ years"
-  const plusPattern = /(\d+)\+\s*(?:years?|yrs?)(?:\s+of)?(?:\s+(?:relevant\s+)?(?:experience|exp\.?))?/i;
-  const plusMatch = text.match(plusPattern);
-  if (plusMatch) {
-    const years = parseInt(plusMatch[1], 10);
-    return { years, display: `${years}+ yrs` };
-  }
+  // 2. Fall back to scanning the full text
+  const result = tryExtract(text);
+  if (result) return result;
 
-  // Generic single number patterns
-  for (const pattern of EXPERIENCE_PATTERNS) {
-    const match = text.match(pattern);
-    if (match) {
-      const years = parseInt(match[1], 10);
-      if (!isNaN(years) && years >= 0 && years <= 30) {
-        return { years, display: `${years} yrs` };
-      }
-    }
-  }
-
-  // Fallback to level keywords
+  // 3. Level keyword fallbacks
   if (ENTRY_LEVEL.test(text)) return { years: 0, display: 'Entry level' };
   if (MID_LEVEL.test(text)) return { years: 3, display: 'Mid-level (~3 yrs)' };
   if (SENIOR_LEVEL.test(text)) return { years: 7, display: 'Senior (7+ yrs)' };

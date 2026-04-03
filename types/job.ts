@@ -1,7 +1,6 @@
 export type JobSource = 'LinkedIn' | 'Indeed' | 'Glassdoor' | 'Custom';
 export type WorkType = 'Remote' | 'Hybrid' | 'On-site' | 'Any';
 export type EmploymentType = 'Full-time' | 'Part-time' | 'Contract';
-export type DatePosted = 'Past 24h' | 'Past week' | 'Past month' | 'Any time';
 
 export interface SalaryInfo {
   min: number | null;
@@ -29,9 +28,12 @@ export interface Job {
   datePostedRaw: Date | string | null;
   source: JobSource;
   sourceUrl: string;
+  /** Direct external apply / careers page URL (may differ from sourceUrl on LinkedIn) */
+  applyUrl: string | null;
   description: string;
   hasCommission: boolean;
   isLanguageFrench: boolean;
+  isReposted: boolean;
 }
 
 export interface SearchFilters {
@@ -39,7 +41,8 @@ export interface SearchFilters {
   location: string;
   workType: WorkType;
   industries: string[];
-  datePosted: DatePosted;
+  /** 0 = any time, otherwise max age in days (e.g. 2 = posted within last 48 h) */
+  datePostedDays: number;
   employmentTypes: EmploymentType[];
   salaryMin: number;
   salaryMax: number;
@@ -59,7 +62,7 @@ export interface ScrapeResult {
 
 export type SortField = keyof Pick<
   Job,
-  'title' | 'company' | 'location' | 'yearsExperience' | 'employmentType' | 'datePostedRaw' | 'source'
+  'title' | 'company' | 'location' | 'yearsExperience' | 'employmentType' | 'datePostedRaw' | 'source' | 'isReposted'
 > | 'salary';
 
 export type SortDir = 'asc' | 'desc';
@@ -96,7 +99,7 @@ export const DEFAULT_FILTERS: SearchFilters = {
   location: 'Toronto, ON',
   workType: 'Any',
   industries: [],
-  datePosted: 'Any time',
+  datePostedDays: 0,
   employmentTypes: [],
   salaryMin: 0,
   salaryMax: 300000,
