@@ -2,7 +2,6 @@ import type { Browser } from 'playwright';
 import type { Job, SearchFilters } from '@/types/job';
 import { buildJobFromRaw, randomUserAgent, sleep, withRetry } from './utils';
 
-// Glassdoor IC city IDs (Canadian cities)
 const CITY_IDS: Record<string, string> = {
   default: '2281069',
   toronto: '2281069',
@@ -24,11 +23,6 @@ function getCityId(location: string): string {
   return CITY_IDS.default;
 }
 
-/**
- * Build Glassdoor's SSR canonical job search URL.
- * Format: /Job/{city}-{kw}-jobs-SRCH_IL.0,{cityLen}_IC{cityId}_KO{kwStart},{kwEnd}.htm
- * This format is server-side rendered for SEO, so it returns HTML without JS.
- */
 function glassdoorSearchUrl(keyword: string, location: string, pageNum = 1): string {
   const city = (location.split(',')[0] || 'toronto')
     .toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -45,28 +39,38 @@ function glassdoorSearchUrl(keyword: string, location: string, pageNum = 1): str
   );
 }
 
+/** CSS injected immediately on page load to nuke all login walls / modals. */
+const MODAL_KILL_CSS = `
+  [class*="modal"],[class*="Modal"],[class*="ModalContainer"],
+  [class*="overlay"],[class*="Overlay"],[class*="hardsell"],
+  [class*="LoginModal"],[class*="SignInModal"],[class*="authModal"],
+  [class*="gdModal"],[class*="ModalBackdrop"],[class*="Backdrop"],
+  [data-test*="modal"],[class*="PaidJobsHH"],[class*="ToastMessage"] {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+  body, html { overflow: auto !important; }
+`;
+
 export async function scrapeGlassdoor(browser: Browser, filters: SearchFilters): Promise<Job[]> {
   const jobs: Job[] = [];
 
-  // Use a fresh context with JS disabled so we get raw SSR HTML.
-  // This bypasses the React login-wall modal which is only injected client-side.
-  const context = await browser.newContext({
-    javaScriptEnabled: false,
-    userAgent: randomUserAgent(),
-    extraHTTPHeaders: {
-      'Accept-Language': 'en-CA,en;q=0.9',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Referer': 'https://www.glassdoor.ca/',
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Site': 'same-origin',
-      'Upgrade-Insecure-Requests': '1',
-    },
-    locale: 'en-CA',
-    timezoneId: 'America/Toronto',
+  const page = await browser.newPage();
+  await page.setExtraHTTPHeaders({
+    'User-Agent': randomUserAgent(),
+    'Accept-Language': 'en-CA,en;q=0.9',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Referer': 'https://www.google.ca/',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'cross-site',
+    'Upgrade-Insecure-Requests': '1',
   });
 
-  const page = await context.newPage();
+  // Inject modal-killing CSS before any navigation
+  await page.addStyleTag({ content: MODAL_KILL_CSS });
 
   try {
     const allCards: Array<{
@@ -80,34 +84,53 @@ export async function scrapeGlassdoor(browser: Browser, filters: SearchFilters):
 
       try {
         await withRetry(async () => {
-          await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 25000 });
+          await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
         });
-        await sleep(1000 + Math.random() * 500);
+
+        // Inject again after navigation in case React re-added the modal
+        await page.addStyleTag({ content: MODAL_KILL_CSS }).catch(() => {});
+
+        // Also remove via JS for elements that resist CSS
+        await page.evaluate(() => {
+          const kill = [
+            '[class*="modal"]', '[class*="Modal"]', '[class*="overlay"]',
+            '[class*="LoginModal"]', '[class*="hardsell"]', '[class*="Backdrop"]',
+          ];
+          document.querySelectorAll(kill.join(',')).forEach((el) => {
+            (el as HTMLElement).style.cssText = 'display:none!important';
+          });
+          document.body.style.overflow = 'auto';
+        }).catch(() => {});
+
+        await sleep(1500 + Math.random() * 500);
       } catch {
         break;
       }
 
       const pageCards = await page.evaluate(() => {
-        // Try multiple selector strategies for Glassdoor SSR HTML
+        // Strategy 1: stable data-test selectors
         let cards = Array.from(document.querySelectorAll('[data-test="jobListing"]'));
 
+        // Strategy 2: class-name fragments
         if (cards.length === 0) {
           cards = Array.from(document.querySelectorAll(
             'li[class*="JobsList"], li[class*="react-job-listing"], ' +
-            'article[class*="JobCard"], [class*="jobCard"], ' +
+            'article[class*="JobCard"], li[class*="jobCard"], ' +
             'li[class*="job-listing"]'
           ));
         }
 
-        // Fallback: any <li> that contains a job link
+        // Strategy 3: any li containing a job link
         if (cards.length === 0) {
           cards = Array.from(document.querySelectorAll('li')).filter((li) =>
-            li.querySelector('a[href*="/job-listing/"], a[href*="/Job/"], a[data-test="job-link"]')
+            li.querySelector(
+              'a[href*="/job-listing/"], a[href*="/Job/"], ' +
+              'a[data-test="job-link"], a[class*="jobLink"]'
+            )
           );
         }
 
         return cards.map((card) => {
-          // Title link
           const titleEl = (
             card.querySelector('[data-test="job-link"]') ??
             card.querySelector('[data-test="job-title"]') ??
@@ -143,6 +166,7 @@ export async function scrapeGlassdoor(browser: Browser, filters: SearchFilters):
           const datePosted = (
             card.querySelector('[data-test="listing-age"]') ??
             card.querySelector('[class*="listing-age"]') ??
+            card.querySelector('[class*="jobAge"]') ??
             card.querySelector('time')
           )?.textContent?.trim() ?? '';
 
@@ -163,7 +187,6 @@ export async function scrapeGlassdoor(browser: Browser, filters: SearchFilters):
       if (added < 3) break;
     }
 
-    // Build jobs from card data only — no per-job page visits (avoids bot detection)
     for (const card of allCards) {
       const fullUrl = card.href.startsWith('http')
         ? card.href
@@ -184,7 +207,6 @@ export async function scrapeGlassdoor(browser: Browser, filters: SearchFilters):
     }
   } finally {
     await page.close();
-    await context.close();
   }
 
   return jobs;
