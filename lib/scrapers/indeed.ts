@@ -2,10 +2,8 @@ import type { Browser, Page } from 'playwright';
 import type { Job, SearchFilters } from '@/types/job';
 import { buildJobFromRaw, randomUserAgent, sleep, withRetry } from './utils';
 
-/** Indeed "fromage" param = number of days */
 function indeedDateParam(days: number): string {
   if (days <= 0) return '';
-  // Indeed uses fromage=N where N is number of days; cap at 14 (their max bucket)
   return String(Math.min(days, 14));
 }
 
@@ -20,50 +18,70 @@ export async function scrapeIndeed(browser: Browser, filters: SearchFilters): Pr
     });
 
     const fromage = indeedDateParam(filters.datePostedDays);
-    const params = new URLSearchParams({
+    const baseParams = new URLSearchParams({
       q: filters.keywords,
       l: filters.location || 'Toronto, ON',
       ...(fromage ? { fromage } : {}),
     });
 
     if (filters.workType === 'Remote') {
-      params.set('remotejob', '032b3046-06a3-4876-8dfd-474eb5e7ed11');
+      baseParams.set('remotejob', '032b3046-06a3-4876-8dfd-474eb5e7ed11');
     }
 
-    const searchUrl = `https://ca.indeed.com/jobs?${params.toString()}`;
+    // ── Paginate: 2 pages of results (~15 cards each = ~30 jobs) ─────────
+    const allCards: Array<{
+      title: string; href: string; company: string;
+      location: string; datePosted: string; salary: string; isReposted: boolean;
+    }> = [];
+    const seenHrefs = new Set<string>();
 
-    await withRetry(async () => {
-      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    });
+    for (const start of [0, 15, 30]) {
+      baseParams.set('start', String(start));
+      const searchUrl = `https://ca.indeed.com/jobs?${baseParams}`;
 
-    await sleep(2000 + Math.random() * 1000);
+      try {
+        await withRetry(async () => {
+          await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        });
+        await sleep(1800 + Math.random() * 800);
+      } catch { break; }
 
-    const jobCards = await page.evaluate(() => {
-      const cards = Array.from(
-        document.querySelectorAll('[class*="job_seen_beacon"], .result, [data-jk]')
-      );
-      return cards.slice(0, 25).map((card) => {
-        const titleEl = card.querySelector('h2 a, .jobTitle a, [class*="JobTitle"] a');
-        const title = titleEl?.textContent?.trim() ?? '';
-        const href = (titleEl as HTMLAnchorElement)?.href ?? '';
-        const company =
-          card.querySelector('[class*="companyName"], .companyName')?.textContent?.trim() ?? '';
-        const location =
-          card.querySelector('[class*="companyLocation"], .companyLocation')?.textContent?.trim() ?? '';
-        const datePosted =
-          card.querySelector('[class*="date"], .date')?.textContent?.trim() ?? '';
-        const salary =
-          card.querySelector('[class*="salary"], .salary-snippet')?.textContent?.trim() ?? '';
-        // Indeed sometimes shows "Reposted" near the date
-        const isReposted = /\breposted\b/i.test(card.textContent ?? '');
-        return { title, href, company, location, datePosted, salary, isReposted };
+      const pageCards = await page.evaluate(() => {
+        const cards = Array.from(
+          document.querySelectorAll('[class*="job_seen_beacon"], .result, [data-jk]')
+        );
+        return cards.map((card) => {
+          const titleEl = card.querySelector('h2 a, .jobTitle a, [class*="JobTitle"] a');
+          const title = titleEl?.textContent?.trim() ?? '';
+          const href = (titleEl as HTMLAnchorElement)?.href ?? '';
+          const company =
+            card.querySelector('[class*="companyName"], .companyName')?.textContent?.trim() ?? '';
+          const location =
+            card.querySelector('[class*="companyLocation"], .companyLocation')?.textContent?.trim() ?? '';
+          const datePosted =
+            card.querySelector('[class*="date"], .date')?.textContent?.trim() ?? '';
+          const salary =
+            card.querySelector('[class*="salary"], .salary-snippet')?.textContent?.trim() ?? '';
+          const isReposted = /\breposted\b/i.test(card.textContent ?? '');
+          return { title, href, company, location, datePosted, salary, isReposted };
+        });
       });
-    });
 
-    for (const card of jobCards) {
+      let added = 0;
+      for (const c of pageCards) {
+        if (c.href && !seenHrefs.has(c.href)) {
+          seenHrefs.add(c.href);
+          allCards.push(c);
+          added++;
+        }
+      }
+      if (added < 5) break; // no more results
+    }
+
+    for (const card of allCards) {
       if (!card.title || !card.href) continue;
       try {
-        await sleep(1200 + Math.random() * 800);
+        await sleep(1000 + Math.random() * 700);
         const job = await scrapeIndeedJob(page, card.href, {
           title: card.title,
           company: card.company,
@@ -73,9 +91,7 @@ export async function scrapeIndeed(browser: Browser, filters: SearchFilters): Pr
           isReposted: card.isReposted,
         });
         if (job) jobs.push(job);
-      } catch {
-        // Skip individual job errors
-      }
+      } catch { /* skip */ }
     }
   } finally {
     await page.close();
@@ -88,12 +104,8 @@ async function scrapeIndeedJob(
   page: Page,
   url: string,
   fallback: {
-    title: string;
-    company: string;
-    location: string;
-    datePosted: string;
-    salaryHint: string;
-    isReposted: boolean;
+    title: string; company: string; location: string;
+    datePosted: string; salaryHint: string; isReposted: boolean;
   }
 ): Promise<Job | null> {
   try {
@@ -101,7 +113,7 @@ async function scrapeIndeedJob(
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
     });
 
-    await sleep(1000);
+    await sleep(800);
 
     const data = await page.evaluate(() => {
       const description =
@@ -109,16 +121,14 @@ async function scrapeIndeedJob(
       const salary =
         document.querySelector('[class*="salary"], [id*="salaryInfoAndJobType"]')?.textContent?.trim() ?? '';
 
-      // Employment type: check dedicated element first, then scan description chips
       let employmentType =
         document.querySelector(
-          '[class*="jobType"], [id*="jobType"], [data-testid*="jobType"], ' +
-          '[class*="EmploymentType"], [class*="employment-type"], ' +
-          'span[class*="chip"]:not([class*="location"]):not([class*="salary"])'
+          '[class*="jobType"], [id*="jobType"], [data-testid*="jobType"], [class*="EmploymentType"]'
         )?.textContent?.trim() ?? '';
-      // Also check attribute-labelled items (Indeed uses metadata spans)
       if (!employmentType) {
-        const chips = Array.from(document.querySelectorAll('[data-testid="attribute_snippet_testid"], [class*="metadata"] span'));
+        const chips = Array.from(document.querySelectorAll(
+          '[data-testid="attribute_snippet_testid"], [class*="metadata"] span'
+        ));
         for (const c of chips) {
           const t = c.textContent?.toLowerCase() ?? '';
           if (t.includes('full-time') || t.includes('part-time') || t.includes('contract') || t.includes('permanent')) {
@@ -128,24 +138,19 @@ async function scrapeIndeedJob(
         }
       }
 
-      // External apply link
       const applyBtn = document.querySelector(
         'a[id*="indeedApplyButton"], a[class*="ApplyButton"], a[data-jk][href*="apply"]'
       ) as HTMLAnchorElement | null;
       const applyUrl = applyBtn?.href ?? null;
-
-      // Scan full page for "Reposted" — no slicing
       const isReposted = /\breposted\b/i.test(document.body.innerText ?? '');
       return { description, salary, employmentType, applyUrl, isReposted };
     });
-
-    const descriptionWithSalary = `${data.salary} ${fallback.salaryHint} ${data.description}`.trim();
 
     return buildJobFromRaw({
       title: fallback.title,
       company: fallback.company,
       location: fallback.location,
-      description: descriptionWithSalary,
+      description: `${data.salary} ${fallback.salaryHint} ${data.description}`.trim(),
       datePostedText: fallback.datePosted,
       sourceUrl: url,
       source: 'Indeed',

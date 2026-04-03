@@ -44,30 +44,35 @@ export async function scrapeLinkedIn(browser: Browser, filters: SearchFilters): 
         : {}),
     });
 
-    const searchUrl = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?${params}`;
+    // ── Paginate through 3 pages of results (25 each = up to 75 jobs) ──────
+    const allCards: Array<{
+      href: string; jobId: string; title: string; company: string;
+      location: string; salary: string; benefits: string[];
+      isReposted: boolean; dateText: string;
+    }> = [];
+    const seenHrefs = new Set<string>();
 
-    await withRetry(async () => {
-      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    });
+    for (const start of [0, 25, 50]) {
+      params.set('start', String(start));
+      const searchUrl = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?${params}`;
 
-    await sleep(1500);
+      try {
+        await withRetry(async () => {
+          await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        });
+        await sleep(1200 + Math.random() * 600);
+      } catch { break; }
 
     // ── Parse card data from the guest API response ───────────────────────
-    const jobCards = await page.evaluate(() => {
+    const pageCards = await page.evaluate(() => {
       // Guest API returns a bare <ul> of <li> cards — no wrapper divs needed
       const items = Array.from(document.querySelectorAll('li'));
 
       const seen = new Set<string>();
       const result: Array<{
-        href: string;
-        jobId: string;
-        title: string;
-        company: string;
-        location: string;
-        salary: string;
-        benefits: string[];
-        isReposted: boolean;
-        dateText: string;
+        href: string; jobId: string; title: string; company: string;
+        location: string; salary: string; benefits: string[];
+        isReposted: boolean; dateText: string;
       }> = [];
 
       for (const li of items) {
@@ -109,14 +114,24 @@ export async function scrapeLinkedIn(browser: Browser, filters: SearchFilters): 
         const isReposted = /\breposted\b/i.test(dateText) || timeEl?.className?.includes('--new') === true;
 
         result.push({ href, jobId, title, company, location, salary, benefits, isReposted, dateText });
-        if (result.length >= 25) break;
       }
 
       return result;
     });
 
+      // Accumulate across pages, dedup by href
+      for (const c of pageCards) {
+        if (!seenHrefs.has(c.href)) {
+          seenHrefs.add(c.href);
+          allCards.push(c);
+        }
+      }
+      // If we got fewer than 20 results this page, there are no more pages
+      if (pageCards.length < 20) break;
+    }
+
     // ── Fetch each job's full detail via the guest detail API ─────────────
-    for (const card of jobCards) {
+    for (const card of allCards) {
       try {
         await sleep(1000 + Math.random() * 700);
         const job = await scrapeLinkedInJobDetail(page, card);

@@ -1,10 +1,28 @@
 import type { Job, SearchFilters } from '@/types/job';
 import { filterByDatePostedDays } from '@/lib/scrapers/utils';
 
+/** Normalize a location string so cross-source duplicates collapse.
+ *  "Toronto, Ontario, Canada" → "toronto"
+ *  "Mississauga, ON"          → "mississauga"
+ *  "North York, ON, Canada"   → "north york"
+ */
+function normalizeLocation(loc: string): string {
+  return loc
+    .toLowerCase()
+    // strip common province names and abbreviations
+    .replace(/\b(ontario|alberta|british columbia|bc|quebec|qc|manitoba|mb|saskatchewan|sk|nova scotia|ns|new brunswick|nb|on|ab)\b/g, '')
+    // strip country
+    .replace(/\b(canada|united states|usa|us)\b/g, '')
+    // strip punctuation/commas
+    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function dedupeKey(job: Job): string {
-  const normalize = (s: string) =>
+  const normalizeText = (s: string) =>
     s.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
-  return `${normalize(job.title)}|${normalize(job.company)}|${normalize(job.location)}`;
+  return `${normalizeText(job.title)}|${normalizeText(job.company)}|${normalizeLocation(job.location)}`;
 }
 
 function completenessScore(job: Job): number {
