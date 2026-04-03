@@ -23,20 +23,18 @@ export function jobMatchesFilters(job: Job, filters: SearchFilters): boolean {
   // Date posted
   if (!dateWithinDays(job.datePostedRaw, filters.datePostedDays)) return false;
 
-  // Salary
+  // Salary — only filter when the job actually has salary data
+  // No salary detected → always passes (same as null employmentType)
   const hasSalary = job.salary !== null && (job.salary.min !== null || job.salary.max !== null);
-  if (!hasSalary && !filters.showNoSalary) return false;
-
   if (hasSalary && job.salary) {
     const jobMin = job.salary.min ?? job.salary.max ?? 0;
     const jobMax = job.salary.max ?? job.salary.min ?? Infinity;
     if (jobMax < filters.salaryMin || jobMin > filters.salaryMax) return false;
   }
 
-  // Experience
+  // Experience — only filter when the job actually has experience data
+  // No experience detected → always passes (same as null employmentType)
   const hasExp = job.yearsExperience !== null;
-  if (!hasExp && !filters.showNoExp) return false;
-
   if (hasExp && job.yearsExperience !== null) {
     if (job.yearsExperience < filters.expMin) return false;
     if (filters.expMax < 15 && job.yearsExperience > filters.expMax) return false;
