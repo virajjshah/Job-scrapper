@@ -1,10 +1,10 @@
-import type { Browser, Page } from 'playwright';
+import type { Browser } from 'playwright';
 import type { Job, SearchFilters } from '@/types/job';
 import { buildJobFromRaw, randomUserAgent, sleep, withRetry } from './utils';
 
-// Glassdoor city IDs for Canadian cities
+// Glassdoor IC city IDs (Canadian cities)
 const CITY_IDS: Record<string, string> = {
-  default: '2281069',    // Toronto
+  default: '2281069',
   toronto: '2281069',
   mississauga: '2281070',
   brampton: '2281066',
@@ -12,6 +12,8 @@ const CITY_IDS: Record<string, string> = {
   vaughan: '2281075',
   oakville: '2281072',
   hamilton: '2281068',
+  scarborough: '2281073',
+  etobicoke: '2281067',
 };
 
 function getCityId(location: string): string {
@@ -23,16 +25,14 @@ function getCityId(location: string): string {
 }
 
 /**
- * Build Glassdoor's canonical SSR job search URL.
- * This format is server-side rendered (used for SEO/Google indexing)
- * so it returns actual HTML job cards without needing JavaScript.
- *
- * Format: /Job/{city}-{keyword}-jobs-SRCH_IL.0,{cityLen}_IC{cityId}_KO{kwStart},{kwEnd}.htm
+ * Build Glassdoor's SSR canonical job search URL.
+ * Format: /Job/{city}-{kw}-jobs-SRCH_IL.0,{cityLen}_IC{cityId}_KO{kwStart},{kwEnd}.htm
+ * This format is server-side rendered for SEO, so it returns HTML without JS.
  */
 function glassdoorSearchUrl(keyword: string, location: string, pageNum = 1): string {
   const city = (location.split(',')[0] || 'toronto')
     .toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-  const kw = keyword
+  const kw = (keyword || 'jobs')
     .toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
   const cityId = getCityId(location);
   const cityLen = city.length;
@@ -47,79 +47,104 @@ function glassdoorSearchUrl(keyword: string, location: string, pageNum = 1): str
 
 export async function scrapeGlassdoor(browser: Browser, filters: SearchFilters): Promise<Job[]> {
   const jobs: Job[] = [];
-  const page = await browser.newPage();
 
-  try {
-    await page.setExtraHTTPHeaders({
-      'User-Agent': randomUserAgent(),
+  // Use a fresh context with JS disabled so we get raw SSR HTML.
+  // This bypasses the React login-wall modal which is only injected client-side.
+  const context = await browser.newContext({
+    javaScriptEnabled: false,
+    userAgent: randomUserAgent(),
+    extraHTTPHeaders: {
       'Accept-Language': 'en-CA,en;q=0.9',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    });
+      'Referer': 'https://www.glassdoor.ca/',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'same-origin',
+      'Upgrade-Insecure-Requests': '1',
+    },
+    locale: 'en-CA',
+    timezoneId: 'America/Toronto',
+  });
 
+  const page = await context.newPage();
+
+  try {
     const allCards: Array<{
       title: string; href: string; company: string;
       location: string; salary: string; datePosted: string; isReposted: boolean;
     }> = [];
     const seenHrefs = new Set<string>();
 
-    // ── 2 pages of results ─────────────────────────────────────────────
-    for (const pageNum of [1, 2]) {
+    for (const pageNum of [1, 2, 3]) {
       const searchUrl = glassdoorSearchUrl(filters.keywords, filters.location || 'Toronto', pageNum);
 
       try {
         await withRetry(async () => {
-          await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+          await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 25000 });
         });
-        await sleep(2000 + Math.random() * 1000);
-      } catch { break; }
-
-      // Dismiss login wall / modal
-      await page.evaluate(() => {
-        document.querySelectorAll(
-          '[class*="modal"], [class*="Modal"], [class*="LoginModal"], ' +
-          '[class*="overlay"], [class*="Overlay"]'
-        ).forEach((el) => { (el as HTMLElement).style.display = 'none'; });
-      });
+        await sleep(1000 + Math.random() * 500);
+      } catch {
+        break;
+      }
 
       const pageCards = await page.evaluate(() => {
-        // Glassdoor SSR page renders job cards into these containers
-        const cards = Array.from(document.querySelectorAll(
-          '[data-test="jobListing"], ' +
-          'li[class*="react-job-listing"], ' +
-          'article[class*="JobCard"], ' +
-          '[class*="JobsList"] li, ' +
-          'li[class*="JobCard"]'
-        ));
+        // Try multiple selector strategies for Glassdoor SSR HTML
+        let cards = Array.from(document.querySelectorAll('[data-test="jobListing"]'));
+
+        if (cards.length === 0) {
+          cards = Array.from(document.querySelectorAll(
+            'li[class*="JobsList"], li[class*="react-job-listing"], ' +
+            'article[class*="JobCard"], [class*="jobCard"], ' +
+            'li[class*="job-listing"]'
+          ));
+        }
+
+        // Fallback: any <li> that contains a job link
+        if (cards.length === 0) {
+          cards = Array.from(document.querySelectorAll('li')).filter((li) =>
+            li.querySelector('a[href*="/job-listing/"], a[href*="/Job/"], a[data-test="job-link"]')
+          );
+        }
 
         return cards.map((card) => {
-          const titleEl = card.querySelector(
-            '[data-test="job-link"], a[class*="jobLink"], a[class*="JobCard"], ' +
-            'a[data-test="job-title"], a[class*="jobTitle"]'
+          // Title link
+          const titleEl = (
+            card.querySelector('[data-test="job-link"]') ??
+            card.querySelector('[data-test="job-title"]') ??
+            card.querySelector('a[href*="/job-listing/"]') ??
+            card.querySelector('a[href*="/Job/"]') ??
+            card.querySelector('a[class*="jobLink"]') ??
+            card.querySelector('a[class*="JobCard"]')
           ) as HTMLAnchorElement | null;
+
           const title = titleEl?.textContent?.trim() ?? '';
           const href = titleEl?.href ?? '';
 
-          const company =
-            card.querySelector(
-              '[class*="EmployerProfile__name"], [data-test="employer-name"], ' +
-              '[class*="employer-name"], [class*="companyName"]'
-            )?.textContent?.trim() ?? '';
+          const company = (
+            card.querySelector('[data-test="employer-name"]') ??
+            card.querySelector('[class*="EmployerProfile__name"]') ??
+            card.querySelector('[class*="employer-name"]') ??
+            card.querySelector('[class*="companyName"]')
+          )?.textContent?.trim() ?? '';
 
-          const location =
-            card.querySelector(
-              '[data-test="emp-location"], [class*="location"], [class*="Location"]'
-            )?.textContent?.trim() ?? '';
+          const location = (
+            card.querySelector('[data-test="emp-location"]') ??
+            card.querySelector('[class*="location"]') ??
+            card.querySelector('[class*="Location"]')
+          )?.textContent?.trim() ?? '';
 
-          const salary =
-            card.querySelector(
-              '[data-test="detailSalary"], [class*="salary"], [class*="Salary"]'
-            )?.textContent?.trim() ?? '';
+          const salary = (
+            card.querySelector('[data-test="detailSalary"]') ??
+            card.querySelector('[data-test="salary-estimate"]') ??
+            card.querySelector('[class*="salary"]') ??
+            card.querySelector('[class*="Salary"]')
+          )?.textContent?.trim() ?? '';
 
-          const datePosted =
-            card.querySelector(
-              '[data-test="listing-age"], [class*="listing-age"], ' +
-              '[class*="jobAge"], time'
-            )?.textContent?.trim() ?? '';
+          const datePosted = (
+            card.querySelector('[data-test="listing-age"]') ??
+            card.querySelector('[class*="listing-age"]') ??
+            card.querySelector('time')
+          )?.textContent?.trim() ?? '';
 
           const isReposted = /\breposted\b/i.test(card.textContent ?? '');
 
@@ -138,98 +163,29 @@ export async function scrapeGlassdoor(browser: Browser, filters: SearchFilters):
       if (added < 3) break;
     }
 
+    // Build jobs from card data only — no per-job page visits (avoids bot detection)
     for (const card of allCards) {
-      try {
-        await sleep(1200 + Math.random() * 800);
-        const fullUrl = card.href.startsWith('http')
-          ? card.href
-          : `https://www.glassdoor.ca${card.href}`;
-        const job = await scrapeGlassdoorJob(page, fullUrl, card);
-        if (job) jobs.push(job);
-      } catch { /* skip */ }
+      const fullUrl = card.href.startsWith('http')
+        ? card.href
+        : `https://www.glassdoor.ca${card.href}`;
+
+      jobs.push(
+        buildJobFromRaw({
+          title: card.title,
+          company: card.company,
+          location: card.location || filters.location || 'Toronto, ON',
+          description: card.salary,
+          datePostedText: card.datePosted,
+          sourceUrl: fullUrl,
+          source: 'Glassdoor',
+          isReposted: card.isReposted,
+        })
+      );
     }
   } finally {
     await page.close();
+    await context.close();
   }
 
   return jobs;
-}
-
-async function scrapeGlassdoorJob(
-  page: Page,
-  url: string,
-  fallback: {
-    title: string; company: string; location: string;
-    datePosted: string; salary: string; isReposted: boolean;
-  }
-): Promise<Job | null> {
-  try {
-    await withRetry(async () => {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-    });
-    await sleep(800);
-
-    await page.evaluate(() => {
-      document.querySelectorAll('[class*="modal"], [class*="Modal"], [class*="LoginModal"]')
-        .forEach((el) => { (el as HTMLElement).style.display = 'none'; });
-    });
-
-    const data = await page.evaluate(() => {
-      const description =
-        document.querySelector(
-          '[class*="JobDetails"], [data-test="job-description"], .desc, [class*="jobDescription"]'
-        )?.textContent?.trim() ?? '';
-
-      const salary =
-        document.querySelector('[data-test="salaryEstimate"], [class*="salary"]')
-          ?.textContent?.trim() ?? '';
-
-      let empType =
-        document.querySelector(
-          '[data-test="job-type"], [class*="jobType"], [class*="EmploymentType"]'
-        )?.textContent?.trim() ?? '';
-      if (!empType) {
-        for (const el of Array.from(document.querySelectorAll('[class*="JobDetails"] span'))) {
-          const t = el.textContent?.toLowerCase() ?? '';
-          if (t.includes('full-time') || t.includes('part-time') || t.includes('contract')) {
-            empType = el.textContent?.trim() ?? '';
-            break;
-          }
-        }
-      }
-
-      const applyBtn = document.querySelector(
-        'a[data-test="applyButton"], a[class*="applyButton"], ' +
-        'a[href*="apply"]:not([href*="glassdoor"])'
-      ) as HTMLAnchorElement | null;
-      const applyUrl = applyBtn?.href ?? null;
-
-      const isReposted = /\breposted\b/i.test(document.body.innerText ?? '');
-      return { description, salary, empType, applyUrl, isReposted };
-    });
-
-    return buildJobFromRaw({
-      title: fallback.title,
-      company: fallback.company,
-      location: fallback.location,
-      description: `${data.salary} ${fallback.salary} ${data.description}`.trim(),
-      datePostedText: fallback.datePosted,
-      sourceUrl: url,
-      source: 'Glassdoor',
-      employmentTypeText: data.empType,
-      applyUrl: data.applyUrl,
-      isReposted: fallback.isReposted || data.isReposted,
-    });
-  } catch {
-    return buildJobFromRaw({
-      title: fallback.title,
-      company: fallback.company,
-      location: fallback.location,
-      description: fallback.salary,
-      datePostedText: fallback.datePosted,
-      sourceUrl: url,
-      source: 'Glassdoor',
-      isReposted: fallback.isReposted,
-    });
-  }
 }

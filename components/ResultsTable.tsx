@@ -338,7 +338,7 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
                       <tr
                         key={job.id}
                         className={clsx(
-                          'opacity-40 blur-[1px] select-none pointer-events-none transition-colors',
+                          'opacity-45 grayscale-[40%] hover:opacity-80 hover:grayscale-0 transition-all duration-200',
                           job.hasCommission
                             ? 'bg-amber-50 dark:bg-amber-900/10'
                             : 'dark:bg-gray-900'
