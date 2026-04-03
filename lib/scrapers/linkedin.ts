@@ -22,105 +22,104 @@ export async function scrapeLinkedIn(browser: Browser, filters: SearchFilters): 
     await page.setExtraHTTPHeaders({
       'User-Agent': randomUserAgent(),
       'Accept-Language': 'en-CA,en;q=0.9',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     });
 
+    // ── LinkedIn Guest API ────────────────────────────────────────────────
+    // LinkedIn exposes a stable guest search endpoint used by their public
+    // embeds. It returns plain HTML (no JS rendering required) with the exact
+    // same chip data visible on the public search results page:
+    //   • .job-search-card__salary-info  → CA$70K/yr – CA$75K/yr
+    //   • .job-search-card__benefits li  → ✓ On-site, ✓ Full-time
+    //   • time[class*="listdate"]        → "Reposted 11 hours ago"
     const tprValue = linkedInDateParam(filters.datePostedDays);
     const params = new URLSearchParams({
       keywords: filters.keywords,
       location: filters.location || 'Toronto, Ontario, Canada',
+      start: '0',
       ...(tprValue ? { f_TPR: tprValue } : {}),
       ...(filters.workType !== 'Any' ? { f_WT: WORK_TYPE_MAP[filters.workType] } : {}),
       ...(filters.employmentTypes.length > 0
-        ? { f_JT: filters.employmentTypes.map((t) => EMP_TYPE_MAP[t]).filter(Boolean).join('%2C') }
+        ? { f_JT: filters.employmentTypes.map((t) => EMP_TYPE_MAP[t]).filter(Boolean).join(',') }
         : {}),
     });
 
+    const searchUrl = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?${params}`;
+
     await withRetry(async () => {
-      await page.goto(
-        `https://www.linkedin.com/jobs/search/?${params.toString()}`,
-        { waitUntil: 'domcontentloaded', timeout: 30000 }
-      );
+      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
     });
 
-    await sleep(2000 + Math.random() * 1000);
+    await sleep(1500);
 
-    // ── Extract card-level data from the search results listing page ─────────
-    // LinkedIn renders each result as an <li>. From each <li> we pull:
-    //   • salary chip  → .job-search-card__salary-info
-    //   • benefit tags → .job-search-card__benefits li  (✓ On-site, ✓ Full-time …)
-    //   • reposted     → the <time> element text contains "Reposted"
-    // We walk UP from every job-view link to its nearest <li> ancestor so we
-    // never miss a card even if LinkedIn changes outer wrapper class names.
+    // ── Parse card data from the guest API response ───────────────────────
     const jobCards = await page.evaluate(() => {
-      const links = Array.from(
-        document.querySelectorAll('a[href*="/jobs/view/"]')
-      ) as HTMLAnchorElement[];
+      // Guest API returns a bare <ul> of <li> cards — no wrapper divs needed
+      const items = Array.from(document.querySelectorAll('li'));
 
       const seen = new Set<string>();
       const result: Array<{
         href: string;
+        jobId: string;
+        title: string;
+        company: string;
+        location: string;
         salary: string;
         benefits: string[];
         isReposted: boolean;
         dateText: string;
       }> = [];
 
-      for (const a of links) {
-        const href = a.href.split('?')[0];
+      for (const li of items) {
+        // Job link
+        const linkEl = li.querySelector('a[href*="/jobs/view/"]') as HTMLAnchorElement | null;
+        if (!linkEl) continue;
+        const href = linkEl.href.split('?')[0];
         if (!href || seen.has(href)) continue;
         seen.add(href);
 
-        // Walk up to the nearest <li> – every LinkedIn search result lives in one
-        let li: Element | null = a;
-        while (li && li.tagName !== 'LI') {
-          li = li.parentElement;
-        }
-        const card = li ?? a.parentElement;
-        if (!card) continue;
+        // Job ID from data-entity-urn="urn:li:jobPosting:3889123456"
+        const urnEl = li.querySelector('[data-entity-urn]');
+        const jobId = (urnEl?.getAttribute('data-entity-urn') ?? '').replace('urn:li:jobPosting:', '');
 
-        // ── Salary chip ─────────────────────────────────────────────────────
-        // Public search page class: job-search-card__salary-info
-        const salary = (
-          card.querySelector(
-            '.job-search-card__salary-info, ' +
-            '[class*="salary-info"], ' +
-            '[class*="salaryInfo"]'
-          )?.textContent ?? ''
-        ).trim();
+        // Card text fields
+        const title = li.querySelector('.base-search-card__title, h3')?.textContent?.trim() ?? '';
+        const company = li.querySelector('.base-search-card__subtitle, h4')?.textContent?.trim() ?? '';
+        const location = li.querySelector('.job-search-card__location')?.textContent?.trim() ?? '';
 
-        // ── Benefit / insight tags (On-site, Full-time, Hybrid, etc.) ───────
-        // These live in <ul class="job-search-card__benefits"> or similar
-        const benefitEls = card.querySelectorAll(
-          '.job-search-card__benefits li, ' +
-          '[class*="job-search-card__benefits"] li, ' +
-          '[class*="job-insight"] li, ' +
-          '[class*="job-insight-text"], ' +
-          '[class*="benefits-item"]'
-        );
-        const benefits = Array.from(benefitEls)
-          .map((el) => el.textContent?.replace(/[✓✔]/g, '').trim() ?? '')
+        // Salary chip — the exact element shown in the UI
+        const salary = li.querySelector('.job-search-card__salary-info')?.textContent?.trim() ?? '';
+
+        // Benefit pills — "✓ On-site", "✓ Full-time", "✓ Hybrid" etc.
+        const benefits = Array.from(
+          li.querySelectorAll(
+            '.job-search-card__benefits li, ' +
+            '[class*="job-search-card__benefits"] li, ' +
+            '[class*="benefit-item"], ' +
+            '[class*="job-insight"]'
+          )
+        )
+          .map((el) => el.textContent?.replace(/[✓✔\u2713\u2714]/g, '').trim() ?? '')
           .filter((t) => t.length > 0 && t.length < 60);
 
-        // ── Date / Reposted ─────────────────────────────────────────────────
-        // <time class="job-search-card__listdate--new"> contains "Reposted X hours ago"
-        // <time class="job-search-card__listdate"> contains "X days ago"
-        const timeEl = card.querySelector(
-          'time[class*="listdate"], time[class*="listed-time"], time, [class*="listed-time"]'
-        );
+        // Date / Reposted
+        // LinkedIn uses <time class="job-search-card__listdate--new"> for reposted jobs
+        const timeEl = li.querySelector('time');
         const dateText = timeEl?.textContent?.trim() ?? '';
-        const isReposted = /\breposted\b/i.test(dateText) || /\breposted\b/i.test(card.textContent ?? '');
+        const isReposted = /\breposted\b/i.test(dateText) || timeEl?.className?.includes('--new') === true;
 
-        result.push({ href, salary, benefits, isReposted, dateText });
+        result.push({ href, jobId, title, company, location, salary, benefits, isReposted, dateText });
         if (result.length >= 25) break;
       }
 
       return result;
     });
 
+    // ── Fetch each job's full detail via the guest detail API ─────────────
     for (const card of jobCards) {
       try {
-        await sleep(1200 + Math.random() * 800);
-        const job = await scrapeLinkedInJob(page, card.href, card);
+        await sleep(1000 + Math.random() * 700);
+        const job = await scrapeLinkedInJobDetail(page, card);
         if (job) jobs.push(job);
       } catch { /* skip */ }
     }
@@ -131,117 +130,96 @@ export async function scrapeLinkedIn(browser: Browser, filters: SearchFilters): 
   return jobs;
 }
 
-async function scrapeLinkedInJob(
+async function scrapeLinkedInJobDetail(
   page: Page,
-  url: string,
-  hints: { salary: string; benefits: string[]; isReposted: boolean; dateText: string }
+  card: {
+    href: string;
+    jobId: string;
+    title: string;
+    company: string;
+    location: string;
+    salary: string;
+    benefits: string[];
+    isReposted: boolean;
+    dateText: string;
+  }
 ): Promise<Job | null> {
-  await withRetry(async () => {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-  });
+  if (!card.title || !card.company) return null;
 
-  await sleep(1500);
+  let description = '';
+  let employmentType = '';
+  let applyUrl: string | null = null;
 
-  // Expand "Show more" so full description is in the DOM
-  await page.evaluate(() => {
-    (document.querySelector(
-      'button.show-more-less-html__button, button[aria-label*="more"]'
-    ) as HTMLButtonElement | null)?.click();
-  });
+  // Guest detail API — returns full job description HTML without auth
+  if (card.jobId) {
+    const detailUrl = `https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${card.jobId}`;
+    try {
+      await withRetry(async () => {
+        await page.goto(detailUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      });
 
-  await sleep(600);
+      await sleep(600);
 
-  const data = await page.evaluate(() => {
-    const title =
-      document.querySelector('h1.top-card-layout__title, h1[class*="job-title"]')
-        ?.textContent?.trim() ?? '';
+      const detail = await page.evaluate(() => {
+        // Full description
+        const desc = document.querySelector(
+          '.description__text, .show-more-less-html__markup, [class*="description"]'
+        )?.textContent?.trim() ?? '';
 
-    const company =
-      document.querySelector('a.topcard__org-name-link, [class*="company-name"]')
-        ?.textContent?.trim() ?? '';
-
-    const location =
-      document.querySelector('.topcard__flavor--bullet, [class*="job-location"]')
-        ?.textContent?.trim() ?? '';
-
-    const datePosted =
-      document.querySelector('[class*="posted-time"], time, [class*="PostedDate"]')
-        ?.textContent?.trim() ?? '';
-
-    const isRepostedDetail = /\breposted\b/i.test(document.body.innerText ?? '');
-
-    const description =
-      document.querySelector(
-        '.description__text, [class*="job-description"], #job-details'
-      )?.textContent?.trim() ?? '';
-
-    // Employment type from the job criteria list
-    // Structure: <li><h3>Employment type</h3><span>Full-time</span></li>
-    let employmentType = '';
-    for (const item of Array.from(document.querySelectorAll(
-      'li.description__job-criteria-item, [class*="job-criteria-item"]'
-    ))) {
-      const header = item.querySelector('h3, [class*="subheader"]')?.textContent?.toLowerCase() ?? '';
-      if (header.includes('employment type') || header.includes('job type')) {
-        employmentType = item.querySelector('span')?.textContent?.trim() ?? '';
-        break;
-      }
-    }
-
-    // Apply URL: <a> = external; <button> = Easy Apply (no href worth using)
-    let applyUrl: string | null = null;
-    for (const sel of [
-      'a.jobs-apply-button',
-      'a[class*="jobs-apply-button"]',
-      'a[data-tracking-control-name*="offsite_apply"]',
-      'a[data-tracking-control-name*="apply"][href]',
-      'a[class*="apply-button"][href]',
-      '.top-card-layout__cta a[href]',
-    ]) {
-      const el = document.querySelector(sel) as HTMLAnchorElement | null;
-      if (el?.href && !el.href.includes('linkedin.com')) {
-        applyUrl = el.href;
-        break;
-      }
-    }
-
-    // JSON-LD fallback
-    if (!applyUrl) {
-      try {
-        for (const s of Array.from(document.querySelectorAll('script[type="application/ld+json"]'))) {
-          const json = JSON.parse(s.textContent ?? '{}');
-          const c = json?.apply?.url ?? json?.applicationContact?.url ??
-            (json?.url && !json.url.includes('linkedin.com') ? json.url : null);
-          if (c) { applyUrl = c; break; }
+        // Employment type from job criteria list
+        let empType = '';
+        for (const item of Array.from(document.querySelectorAll(
+          '.description__job-criteria-item, [class*="job-criteria-item"]'
+        ))) {
+          const label = item.querySelector('h3')?.textContent?.toLowerCase() ?? '';
+          if (label.includes('employment type') || label.includes('job type')) {
+            empType = item.querySelector('span')?.textContent?.trim() ?? '';
+            break;
+          }
         }
-      } catch { /* ignore */ }
-    }
 
-    return { title, company, location, datePosted, description, employmentType, applyUrl, isRepostedDetail };
-  });
+        // Apply button: <a> tag = external, <button> = Easy Apply
+        let apply: string | null = null;
+        for (const sel of [
+          'a.apply-button--offsite[href]',
+          'a[class*="apply-button"][href]',
+          'a.apply-button[href]',
+        ]) {
+          const el = document.querySelector(sel) as HTMLAnchorElement | null;
+          if (el?.href && !el.href.includes('linkedin.com')) {
+            apply = el.href;
+            break;
+          }
+        }
 
-  if (!data.title || !data.company) return null;
+        return { desc, empType, apply };
+      });
 
-  // Build the hints string: salary chip first, then benefit tags
-  // This is prepended to the description so parsers see "CA$70K/yr – CA$75K/yr · On-site · Full-time"
-  const chipParts = [hints.salary, ...hints.benefits].filter(Boolean);
+      description = detail.desc;
+      employmentType = detail.empType;
+      applyUrl = detail.apply;
+    } catch { /* fall back to card data only */ }
+  }
+
+  // Salary chip + benefit tags prepended so parsers see "CA$70K/yr · On-site · Full-time"
+  const chipParts = [card.salary, ...card.benefits].filter(Boolean);
   const fullDescription = chipParts.length > 0
-    ? `${chipParts.join(' · ')}\n\n${data.description}`
-    : data.description;
+    ? `${chipParts.join(' · ')}\n\n${description}`
+    : description;
 
-  // Employment type: prefer the detail-page value, fall back to benefits chips from card
-  const empTypeText = data.employmentType || hints.benefits.join(' ');
+  // Employment type: detail page > benefit chips from card
+  const empTypeText = employmentType || card.benefits.join(' ');
 
   return buildJobFromRaw({
-    title: data.title,
-    company: data.company,
-    location: data.location,
+    title: card.title,
+    company: card.company,
+    location: card.location,
     description: fullDescription,
-    datePostedText: hints.dateText || data.datePosted,
-    sourceUrl: url,
+    datePostedText: card.dateText,
+    sourceUrl: card.href,
     source: 'LinkedIn',
     employmentTypeText: empTypeText,
-    applyUrl: data.applyUrl,
-    isReposted: hints.isReposted || data.isRepostedDetail,
+    applyUrl,
+    isReposted: card.isReposted,
   });
 }
