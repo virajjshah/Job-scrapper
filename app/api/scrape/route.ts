@@ -5,7 +5,7 @@ import { scrapeLinkedIn } from '@/lib/scrapers/linkedin';
 import { scrapeIndeed } from '@/lib/scrapers/indeed';
 import { scrapeGlassdoor } from '@/lib/scrapers/glassdoor';
 import { scrapeCustomUrl } from '@/lib/scrapers/custom';
-import { deduplicateJobs, applyFilters } from '@/lib/deduplication';
+import { deduplicateJobs } from '@/lib/deduplication';
 
 export const maxDuration = 300; // 5-minute timeout for scraping
 
@@ -82,23 +82,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Deduplicate then apply filters
+    // Deduplicate — return all jobs; filtering happens client-side for blur-below UX
     const deduped = deduplicateJobs(allJobs);
-    const totalDeduped = deduped.length;
-    const filtered = applyFilters(deduped, filters);
 
     // Sort by date (newest first) as default
-    filtered.sort((a, b) => {
+    deduped.sort((a, b) => {
       const ta = a.datePostedRaw instanceof Date ? a.datePostedRaw.getTime() : 0;
       const tb = b.datePostedRaw instanceof Date ? b.datePostedRaw.getTime() : 0;
       return tb - ta;
     });
 
     const result: ScrapeResult = {
-      jobs: filtered,
+      jobs: deduped,
       errors,
       totalBySource,
-      totalDeduped,
+      totalDeduped: deduped.length,
       durationMs: Date.now() - startTime,
     };
 

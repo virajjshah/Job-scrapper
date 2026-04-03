@@ -6,6 +6,7 @@ import { ResultsTable } from '@/components/ResultsTable';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import type { ScrapeResult, SearchFilters } from '@/types/job';
+import { DEFAULT_FILTERS } from '@/types/job';
 import { Briefcase, AlertCircle, X, CheckCircle, ExternalLink } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
@@ -17,6 +18,7 @@ export default function HomePage() {
   const [isExporting, setIsExporting] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
   const [lastKeywords, setLastKeywords] = useState('');
+  const [lastFilters, setLastFilters] = useState<SearchFilters>(DEFAULT_FILTERS);
 
   // Handle Google OAuth callback tokens in URL params
   useEffect(() => {
@@ -43,6 +45,7 @@ export default function HomePage() {
     setIsLoading(true);
     setResult(null);
     setLastKeywords(filters.keywords);
+    setLastFilters(filters);
 
     try {
       const res = await fetch('/api/scrape', {
@@ -180,6 +183,7 @@ export default function HomePage() {
               totalDeduped={result.totalDeduped}
               errors={result.errors}
               durationMs={result.durationMs}
+              filters={lastFilters}
               onExport={handleExport}
               isExporting={isExporting}
             />
