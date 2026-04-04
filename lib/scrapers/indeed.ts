@@ -1,196 +1,151 @@
-import type { Browser, Page } from 'playwright-core';
+import { parse } from 'node-html-parser';
 import type { Job, SearchFilters } from '@/types/job';
-import { buildJobFromRaw, randomUserAgent, sleep, withRetry } from './utils';
+import { buildJobFromRaw, randomUserAgent, sleep } from './utils';
 
-function indeedDateParam(days: number): string {
-  if (days <= 0) return '';
-  return String(Math.min(days, 14));
+async function indeedGet(url: string): Promise<string> {
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': randomUserAgent(),
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-CA,en;q=0.9',
+      'Cache-Control': 'no-cache',
+      'Referer': 'https://ca.indeed.com/',
+    },
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!res.ok) throw new Error(`Indeed ${res.status}`);
+  return res.text();
 }
 
-export async function scrapeIndeed(browser: Browser, filters: SearchFilters): Promise<Job[]> {
+/**
+ * Scrape Indeed via RSS (reliable, no bot detection) for job listings,
+ * then fetch each job page for full description, salary and employment type.
+ */
+export async function scrapeIndeed(filters: SearchFilters): Promise<Job[]> {
   const jobs: Job[] = [];
-  const page = await browser.newPage();
 
+  // ── Step 1: Get listings from RSS feed ───────────────────────────────
+  const params = new URLSearchParams({
+    q: filters.keywords,
+    l: filters.location || 'Toronto, ON',
+    radius: '35',
+    limit: '50',
+    sort: 'date',
+  });
+  if (filters.datePostedDays > 0) {
+    params.set('fromage', String(Math.min(filters.datePostedDays, 14)));
+  }
+
+  const rssUrl = `https://ca.indeed.com/rss?${params}`;
+  let xml = '';
   try {
-    await page.setExtraHTTPHeaders({
-      'User-Agent': randomUserAgent(),
-      'Accept-Language': 'en-CA,en;q=0.9',
+    const res = await fetch(rssUrl, {
+      headers: {
+        'User-Agent': randomUserAgent(),
+        'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+        'Accept-Language': 'en-CA,en;q=0.9',
+      },
+      signal: AbortSignal.timeout(20000),
     });
+    if (res.ok) xml = await res.text();
+  } catch { /* fall through with empty xml */ }
 
-    const fromage = indeedDateParam(filters.datePostedDays);
-    const baseParams = new URLSearchParams({
-      q: filters.keywords,
-      l: filters.location || 'Toronto, ON',
-      ...(fromage ? { fromage } : {}),
-    });
+  type RssCard = {
+    title: string; link: string; company: string;
+    location: string; pubDate: string; descSnippet: string;
+  };
 
-    if (filters.workType === 'Remote') {
-      baseParams.set('remotejob', '032b3046-06a3-4876-8dfd-474eb5e7ed11');
+  const rssCards: RssCard[] = [];
+  if (xml) {
+    const itemRe = /<item>([\s\S]*?)<\/item>/g;
+    let itemMatch: RegExpExecArray | null;
+    while ((itemMatch = itemRe.exec(xml)) !== null) {
+      const item = itemMatch[1];
+      const title = (() => {
+        const cd = /<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/.exec(item);
+        if (cd) return cd[1].trim();
+        return /<title>([^<]+)<\/title>/.exec(item)?.[1]?.trim() ?? '';
+      })();
+      const link = /<link>([^<]+)<\/link>/.exec(item)?.[1]?.trim() ?? '';
+      const company = (() => {
+        const cd = /<source[^>]*><!\[CDATA\[([\s\S]*?)\]\]><\/source>/.exec(item);
+        if (cd) return cd[1].trim();
+        return /<source[^>]*>([^<]+)<\/source>/.exec(item)?.[1]?.trim() ?? '';
+      })();
+      const pubDate = /<pubDate>([^<]+)<\/pubDate>/.exec(item)?.[1]?.trim() ?? '';
+      const city = /<indeed:city>([^<]*)<\/indeed:city>/.exec(item)?.[1]?.trim() ?? '';
+      const state = /<indeed:state>([^<]*)<\/indeed:state>/.exec(item)?.[1]?.trim() ?? '';
+      const location = [city, state].filter(Boolean).join(', ') || filters.location || 'Toronto, ON';
+      const rawDesc = (() => {
+        const cd = /<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/.exec(item);
+        if (cd) return cd[1];
+        return /<description>([\s\S]*?)<\/description>/.exec(item)?.[1] ?? '';
+      })();
+      const descSnippet = rawDesc.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+      if (title && link) {
+        rssCards.push({ title, link, company, location, pubDate, descSnippet });
+      }
     }
+  }
 
-    // ── Paginate: 4 pages × ~15 results = up to ~60 cards ────────────────
-    const allCards: Array<{
-      title: string; href: string; company: string;
-      location: string; datePosted: string; salary: string; isReposted: boolean;
-    }> = [];
-    const seenHrefs = new Set<string>();
+  // ── Step 2: Deep scrape each job page ────────────────────────────────
+  for (const card of rssCards) {
+    try {
+      await sleep(500 + Math.random() * 400);
 
-    for (const start of [0, 15, 30, 45]) {
-      baseParams.set('start', String(start));
-      const searchUrl = `https://ca.indeed.com/jobs?${baseParams}`;
+      const html = await indeedGet(card.link);
+      const root = parse(html);
 
-      try {
-        await withRetry(async () => {
-          await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        });
-        await sleep(2000 + Math.random() * 1000);
-      } catch { break; }
+      // Full description
+      const description = (
+        root.querySelector('#jobDescriptionText') ??
+        root.querySelector('[class*="jobDescriptionText"]') ??
+        root.querySelector('[class*="jobsearch-JobComponent-description"]')
+      )?.textContent?.trim() ?? card.descSnippet;
 
-      const pageCards = await page.evaluate(() => {
-        const cards = Array.from(
-          document.querySelectorAll('[class*="job_seen_beacon"], .result, [data-jk], [class*="resultContent"]')
-        );
-        return cards.map((card) => {
-          const titleEl = card.querySelector('h2 a, .jobTitle a, [class*="JobTitle"] a, a[class*="jcs-JobTitle"]');
-          const title = titleEl?.textContent?.trim() ?? '';
-          const href = (titleEl as HTMLAnchorElement)?.href ?? '';
-          const company =
-            card.querySelector('[class*="companyName"], .companyName, [data-testid="company-name"]')?.textContent?.trim() ?? '';
-          const location =
-            card.querySelector('[class*="companyLocation"], .companyLocation, [data-testid="text-location"]')?.textContent?.trim() ?? '';
-          const datePosted =
-            card.querySelector('[class*="date"], .date, [data-testid="myJobsStateDate"]')?.textContent?.trim() ?? '';
-          const salary =
-            card.querySelector('[class*="salary"], .salary-snippet, [class*="salaryText"], [data-testid="attribute_snippet_testid"]')?.textContent?.trim() ?? '';
-          const isReposted = /\breposted\b/i.test(card.textContent ?? '');
-          return { title, href, company, location, datePosted, salary, isReposted };
-        });
-      });
+      // Salary
+      const salary = (
+        root.querySelector('[class*="salaryInfoAndJobType"]') ??
+        root.querySelector('[id*="salaryInfo"]') ??
+        root.querySelector('[class*="salary"]')
+      )?.textContent?.trim() ?? '';
 
-      let added = 0;
-      for (const c of pageCards) {
-        if (c.href && !seenHrefs.has(c.href)) {
-          seenHrefs.add(c.href);
-          allCards.push(c);
-          added++;
+      // Employment type from metadata chips
+      let employmentType = '';
+      for (const el of root.querySelectorAll('[data-testid="attribute_snippet_testid"], [class*="metadata"] span')) {
+        const t = el.textContent?.toLowerCase() ?? '';
+        if (t.includes('full-time') || t.includes('part-time') || t.includes('contract') || t.includes('permanent')) {
+          employmentType = el.textContent?.trim() ?? '';
+          break;
         }
       }
-      if (added < 3) break; // no more results
-    }
 
-    // ── Visit EVERY job detail page ───────────────────────────────────────
-    for (const card of allCards) {
-      if (!card.title || !card.href) continue;
-      try {
-        await sleep(800 + Math.random() * 500);
-        const job = await scrapeIndeedJob(page, card.href, {
-          title: card.title,
-          company: card.company,
-          location: card.location,
-          datePosted: card.datePosted,
-          salaryHint: card.salary,
-          isReposted: card.isReposted,
-        });
-        if (job) jobs.push(job);
-      } catch {
-        // Fallback: build from card data if detail page failed
-        jobs.push(
-          buildJobFromRaw({
-            title: card.title,
-            company: card.company,
-            location: card.location || filters.location || 'Toronto, ON',
-            description: card.salary,
-            datePostedText: card.datePosted,
-            sourceUrl: card.href,
-            source: 'Indeed',
-            isReposted: card.isReposted,
-          })
-        );
-      }
+      const fullDesc = [salary, description].filter(Boolean).join('\n');
+
+      jobs.push(buildJobFromRaw({
+        title: card.title,
+        company: card.company,
+        location: card.location,
+        description: fullDesc,
+        datePostedText: card.pubDate,
+        sourceUrl: card.link,
+        source: 'Indeed',
+        employmentTypeText: employmentType,
+      }));
+    } catch {
+      // Fallback: use RSS snippet data
+      jobs.push(buildJobFromRaw({
+        title: card.title,
+        company: card.company,
+        location: card.location,
+        description: card.descSnippet,
+        datePostedText: card.pubDate,
+        sourceUrl: card.link,
+        source: 'Indeed',
+      }));
     }
-  } finally {
-    await page.close();
   }
 
   return jobs;
-}
-
-async function scrapeIndeedJob(
-  page: Page,
-  url: string,
-  fallback: {
-    title: string; company: string; location: string;
-    datePosted: string; salaryHint: string; isReposted: boolean;
-  }
-): Promise<Job | null> {
-  try {
-    await withRetry(async () => {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
-    });
-    await sleep(1000);
-
-    const data = await page.evaluate(() => {
-      // Full job description
-      const description =
-        document.querySelector('#jobDescriptionText, [class*="jobDescriptionText"], [class*="jobsearch-JobComponent-description"]')
-          ?.textContent?.trim() ?? '';
-
-      // Salary from detail page
-      const salary =
-        document.querySelector('[class*="salary"], [id*="salaryInfoAndJobType"], [class*="salaryText"]')
-          ?.textContent?.trim() ?? '';
-
-      // Employment type from chips/metadata
-      let employmentType =
-        document.querySelector(
-          '[class*="jobType"], [id*="jobType"], [data-testid*="jobType"], [class*="EmploymentType"]'
-        )?.textContent?.trim() ?? '';
-
-      if (!employmentType) {
-        const chips = Array.from(document.querySelectorAll(
-          '[data-testid="attribute_snippet_testid"], [class*="metadata"] span, [class*="jobMetaData"] span'
-        ));
-        for (const c of chips) {
-          const t = c.textContent?.toLowerCase() ?? '';
-          if (t.includes('full-time') || t.includes('part-time') || t.includes('contract') || t.includes('permanent')) {
-            employmentType = c.textContent?.trim() ?? '';
-            break;
-          }
-        }
-      }
-
-      // Apply URL
-      const applyBtn = document.querySelector(
-        'a[id*="indeedApplyButton"], a[class*="ApplyButton"], a[data-jk][href*="apply"], a[href*="apply"]'
-      ) as HTMLAnchorElement | null;
-      const applyUrl = applyBtn?.href ?? null;
-
-      const isReposted = /\breposted\b/i.test(document.body.innerText ?? '');
-      return { description, salary, employmentType, applyUrl, isReposted };
-    });
-
-    return buildJobFromRaw({
-      title: fallback.title,
-      company: fallback.company,
-      location: fallback.location,
-      description: `${data.salary} ${fallback.salaryHint} ${data.description}`.trim(),
-      datePostedText: fallback.datePosted,
-      sourceUrl: url,
-      source: 'Indeed',
-      employmentTypeText: data.employmentType,
-      applyUrl: data.applyUrl,
-      isReposted: fallback.isReposted || data.isReposted,
-    });
-  } catch {
-    return buildJobFromRaw({
-      title: fallback.title,
-      company: fallback.company,
-      location: fallback.location,
-      description: fallback.salaryHint,
-      datePostedText: fallback.datePosted,
-      sourceUrl: url,
-      source: 'Indeed',
-      isReposted: fallback.isReposted,
-    });
-  }
 }
