@@ -1,4 +1,4 @@
-import type { Browser } from 'playwright';
+import type { Browser, Page } from 'playwright-core';
 import type { Job, SearchFilters } from '@/types/job';
 import { buildJobFromRaw, randomUserAgent, sleep, withRetry } from './utils';
 
@@ -38,14 +38,14 @@ export async function scrapeLinkedIn(browser: Browser, filters: SearchFilters): 
     });
 
     const allCards: Array<{
-      href: string; title: string; company: string;
+      href: string; jobId: string; title: string; company: string;
       location: string; salary: string; benefits: string[];
       isReposted: boolean; dateText: string;
     }> = [];
     const seenHrefs = new Set<string>();
 
-    // ── Paginate 5 pages × 25 = up to 125 cards ──────────────────────────
-    for (const start of [0, 25, 50, 75, 100]) {
+    // ── 3 pages × 25 = up to 75 cards ────────────────────────────────────
+    for (const start of [0, 25, 50]) {
       params.set('start', String(start));
       const searchUrl = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?${params}`;
 
@@ -60,7 +60,7 @@ export async function scrapeLinkedIn(browser: Browser, filters: SearchFilters): 
         const items = Array.from(document.querySelectorAll('li'));
         const seen = new Set<string>();
         const result: Array<{
-          href: string; title: string; company: string;
+          href: string; jobId: string; title: string; company: string;
           location: string; salary: string; benefits: string[];
           isReposted: boolean; dateText: string;
         }> = [];
@@ -72,37 +72,35 @@ export async function scrapeLinkedIn(browser: Browser, filters: SearchFilters): 
           if (!href || seen.has(href)) continue;
           seen.add(href);
 
-          const title =
-            li.querySelector('.base-search-card__title, h3')?.textContent?.trim() ?? '';
-          const company =
-            li.querySelector('.base-search-card__subtitle, h4')?.textContent?.trim() ?? '';
-          const location =
-            li.querySelector('.job-search-card__location')?.textContent?.trim() ?? '';
+          // Job ID from data-entity-urn="urn:li:jobPosting:12345"
+          const urnEl = li.querySelector('[data-entity-urn]');
+          const jobId = (urnEl?.getAttribute('data-entity-urn') ?? '').replace('urn:li:jobPosting:', '');
 
-          // Salary chip (e.g. "CA$70K/yr – CA$90K/yr")
-          const salary =
-            li.querySelector('.job-search-card__salary-info')?.textContent?.trim() ?? '';
+          const title = li.querySelector('.base-search-card__title, h3')?.textContent?.trim() ?? '';
+          const company = li.querySelector('.base-search-card__subtitle, h4')?.textContent?.trim() ?? '';
+          const location = li.querySelector('.job-search-card__location')?.textContent?.trim() ?? '';
 
-          // Benefit/work-type pills (e.g. "✓ On-site", "✓ Full-time")
+          // Salary chip e.g. "CA$70K/yr – CA$90K/yr"
+          const salary = li.querySelector('.job-search-card__salary-info')?.textContent?.trim() ?? '';
+
+          // Benefit pills: "✓ On-site", "✓ Full-time" etc.
           const benefits = Array.from(
             li.querySelectorAll(
-              '.job-search-card__benefits li, ' +
-              '[class*="job-search-card__benefits"] li, ' +
+              '.job-search-card__benefits li, [class*="job-search-card__benefits"] li, ' +
               '[class*="benefit-item"], [class*="job-insight"]'
             )
           )
             .map((el) => el.textContent?.replace(/[✓✔\u2713\u2714]/g, '').trim() ?? '')
             .filter((t) => t.length > 0 && t.length < 60);
 
-          // Date + repost detection: check time element AND full card text
+          // Repost: check ONLY the <time> element — not full card text (too broad)
           const timeEl = li.querySelector('time');
           const dateText = timeEl?.textContent?.trim() ?? '';
           const isReposted =
             /\breposted\b/i.test(dateText) ||
-            timeEl?.className?.includes('--new') === true ||
-            /\breposted\b/i.test(li.textContent ?? '');
+            timeEl?.className?.includes('--new') === true;
 
-          result.push({ href, title, company, location, salary, benefits, isReposted, dateText });
+          result.push({ href, jobId, title, company, location, salary, benefits, isReposted, dateText });
         }
 
         return result;
@@ -116,39 +114,115 @@ export async function scrapeLinkedIn(browser: Browser, filters: SearchFilters): 
           added++;
         }
       }
-      if (pageCards.length < 15) break; // last page reached
+      if (pageCards.length < 15) break;
     }
 
-    // ── Build jobs directly from card data ────────────────────────────────
-    // We intentionally skip per-job detail page visits: the card already has
-    // salary chip, benefit pills (work-type, employment-type), date, and repost
-    // status. Visiting 75-125 detail pages would add 2-3 minutes and cause
-    // rate-limiting timeouts before most cards are processed.
-    for (const card of allCards) {
+    // ── Visit detail pages for first 30 cards (description, salary, exp, apply URL) ──
+    // Remaining cards are built from chip data only to stay within timeout budget.
+    // 30 detail pages × ~1.2s = ~36s — well within the 5-minute limit.
+    const DETAIL_LIMIT = 30;
+
+    for (let i = 0; i < allCards.length; i++) {
+      const card = allCards[i];
       if (!card.title || !card.company) continue;
 
-      // Combine salary chip + benefit pills into description so parsers see them
-      const chipParts = [card.salary, ...card.benefits].filter(Boolean);
-      const description = chipParts.join(' · ');
+      try {
+        await sleep(700 + Math.random() * 500);
 
-      jobs.push(
-        buildJobFromRaw({
-          title: card.title,
-          company: card.company,
-          location: card.location || filters.location || 'Toronto, ON',
-          description,
-          datePostedText: card.dateText,
-          sourceUrl: card.href,
-          source: 'LinkedIn',
-          employmentTypeText: card.benefits.join(' '),
-          applyUrl: null,
-          isReposted: card.isReposted,
-        })
-      );
+        if (i < DETAIL_LIMIT && card.jobId) {
+          const job = await scrapeLinkedInDetail(page, card);
+          if (job) { jobs.push(job); continue; }
+        }
+
+        // Card-data-only fallback (cards beyond limit, or detail fetch failed)
+        const chipParts = [card.salary, ...card.benefits].filter(Boolean);
+        jobs.push(
+          buildJobFromRaw({
+            title: card.title,
+            company: card.company,
+            location: card.location || filters.location || 'Toronto, ON',
+            description: chipParts.join(' · '),
+            datePostedText: card.dateText,
+            sourceUrl: card.href,
+            source: 'LinkedIn',
+            employmentTypeText: card.benefits.join(' '),
+            applyUrl: null,
+            isReposted: card.isReposted,
+          })
+        );
+      } catch { /* skip on error */ }
     }
   } finally {
     await page.close();
   }
 
   return jobs;
+}
+
+async function scrapeLinkedInDetail(
+  page: Page,
+  card: {
+    href: string; jobId: string; title: string; company: string;
+    location: string; salary: string; benefits: string[];
+    isReposted: boolean; dateText: string;
+  }
+): Promise<Job | null> {
+  const detailUrl = `https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${card.jobId}`;
+
+  await withRetry(async () => {
+    await page.goto(detailUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  });
+
+  await sleep(500);
+
+  const detail = await page.evaluate(() => {
+    const desc =
+      document.querySelector('.description__text, .show-more-less-html__markup, [class*="description"]')
+        ?.textContent?.trim() ?? '';
+
+    let empType = '';
+    for (const item of Array.from(
+      document.querySelectorAll('.description__job-criteria-item, [class*="job-criteria-item"]')
+    )) {
+      const label = item.querySelector('h3')?.textContent?.toLowerCase() ?? '';
+      if (label.includes('employment type') || label.includes('job type')) {
+        empType = item.querySelector('span')?.textContent?.trim() ?? '';
+        break;
+      }
+    }
+
+    // External apply link (<a> = offsite, <button> = Easy Apply — no href)
+    let apply: string | null = null;
+    for (const sel of [
+      'a.apply-button--offsite[href]',
+      'a[class*="apply-button"][href]',
+      'a.apply-button[href]',
+    ]) {
+      const el = document.querySelector(sel) as HTMLAnchorElement | null;
+      if (el?.href && !el.href.includes('linkedin.com')) {
+        apply = el.href;
+        break;
+      }
+    }
+
+    return { desc, empType, apply };
+  });
+
+  // Merge: salary chip + benefit chips + full description
+  const chipParts = [card.salary, ...card.benefits].filter(Boolean);
+  const fullDescription = [chipParts.join(' · '), detail.desc].filter(Boolean).join('\n\n');
+  const empTypeText = detail.empType || card.benefits.join(' ');
+
+  return buildJobFromRaw({
+    title: card.title,
+    company: card.company,
+    location: card.location,
+    description: fullDescription,
+    datePostedText: card.dateText,
+    sourceUrl: card.href,
+    source: 'LinkedIn',
+    employmentTypeText: empTypeText,
+    applyUrl: detail.apply,
+    isReposted: card.isReposted,
+  });
 }

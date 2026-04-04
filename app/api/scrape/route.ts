@@ -1,13 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { chromium } from 'playwright';
-import type { SearchFilters, ScrapeResult, JobSource } from '@/types/job';
+import { chromium } from 'playwright-core';
+import type { Browser } from 'playwright-core';
+import type { SearchFilters, ScrapeResult } from '@/types/job';
 import { scrapeLinkedIn } from '@/lib/scrapers/linkedin';
 import { scrapeIndeed } from '@/lib/scrapers/indeed';
 import { scrapeGlassdoor } from '@/lib/scrapers/glassdoor';
 import { scrapeCustomUrl } from '@/lib/scrapers/custom';
 import { deduplicateJobs } from '@/lib/deduplication';
 
-export const maxDuration = 300; // 5-minute timeout for scraping
+export const maxDuration = 300;
+
+/**
+ * Launch Chromium in a way that works both locally (playwright installed)
+ * and on Vercel/Lambda serverless (no system browsers available).
+ * On Vercel: @sparticuz/chromium provides a minimal pre-built Chromium binary.
+ * Locally: playwright-core falls back to the Playwright browser cache.
+ */
+async function launchBrowser(): Promise<Browser> {
+  const args = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-blink-features=AutomationControlled',
+    '--disable-dev-shm-usage',
+    '--disable-infobars',
+    '--single-process',
+    '--no-zygote',
+    '--window-size=1366,768',
+  ];
+
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION) {
+    // Serverless: use @sparticuz/chromium which ships its own binary
+    const chromiumBin = (await import('@sparticuz/chromium')).default;
+    chromiumBin.setGraphicsMode = false;
+    return chromium.launch({
+      args: [...chromiumBin.args, ...args],
+      executablePath: await chromiumBin.executablePath(),
+      headless: true,
+    });
+  }
+
+  // Local dev: use the Playwright-installed Chromium
+  return chromium.launch({ headless: true, args });
+}
 
 export async function POST(req: NextRequest) {
   const filters: SearchFilters = await req.json();
@@ -25,23 +59,13 @@ export async function POST(req: NextRequest) {
     Glassdoor: 0,
   };
 
-  let browser: import('playwright').Browser | null = null;
+  let browser: Browser | null = null;
 
   try {
-    browser = await chromium.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-infobars',
-        '--window-size=1366,768',
-      ],
-    });
+    browser = await launchBrowser();
 
     const allJobs: import('@/types/job').Job[] = [];
 
-    // Scrape all sources in parallel with individual error handling
     const [linkedInJobs, indeedJobs, glassdoorJobs] = await Promise.allSettled([
       scrapeLinkedIn(browser, filters),
       scrapeIndeed(browser, filters),
@@ -69,7 +93,6 @@ export async function POST(req: NextRequest) {
       errors.Glassdoor = glassdoorJobs.reason?.message ?? 'Glassdoor scraping failed';
     }
 
-    // Scrape custom URLs sequentially
     for (const url of filters.customUrls.filter(Boolean)) {
       try {
         const customJobs = await scrapeCustomUrl(browser, url);
@@ -82,10 +105,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Deduplicate — return all jobs; filtering happens client-side for blur-below UX
     const deduped = deduplicateJobs(allJobs);
 
-    // Sort by date (newest first) as default
     deduped.sort((a, b) => {
       const ta = a.datePostedRaw instanceof Date ? a.datePostedRaw.getTime() : 0;
       const tb = b.datePostedRaw instanceof Date ? b.datePostedRaw.getTime() : 0;

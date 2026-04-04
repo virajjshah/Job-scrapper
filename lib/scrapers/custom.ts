@@ -1,4 +1,4 @@
-import type { Browser, Page } from 'playwright';
+import type { Browser, Page } from 'playwright-core';
 import type { Job } from '@/types/job';
 import { buildJobFromRaw, randomUserAgent, sleep, withRetry } from './utils';
 

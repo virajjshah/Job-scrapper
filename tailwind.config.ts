@@ -9,6 +9,9 @@ const config: Config = {
   darkMode: 'class',
   theme: {
     extend: {
+      fontFamily: {
+        gabarito: ['var(--font-gabarito)', 'sans-serif'],
+      },
       colors: {
         linkedin: '#0077B5',
         indeed: '#2164F3',
