@@ -72,9 +72,12 @@ export async function scrapeLinkedIn(browser: Browser, filters: SearchFilters): 
           if (!href || seen.has(href)) continue;
           seen.add(href);
 
-          // Job ID from data-entity-urn="urn:li:jobPosting:12345"
+          // Job ID — primary: parse from the URL (always present)
+          // fallback: data-entity-urn attribute (not always set in guest API HTML)
+          const jobIdFromUrl = href.match(/\/jobs\/view\/(\d+)/)?.[1] ?? '';
           const urnEl = li.querySelector('[data-entity-urn]');
-          const jobId = (urnEl?.getAttribute('data-entity-urn') ?? '').replace('urn:li:jobPosting:', '');
+          const jobIdFromUrn = (urnEl?.getAttribute('data-entity-urn') ?? '').replace('urn:li:jobPosting:', '');
+          const jobId = jobIdFromUrl || jobIdFromUrn;
 
           const title = li.querySelector('.base-search-card__title, h3')?.textContent?.trim() ?? '';
           const company = li.querySelector('.base-search-card__subtitle, h4')?.textContent?.trim() ?? '';
@@ -128,28 +131,27 @@ export async function scrapeLinkedIn(browser: Browser, filters: SearchFilters): 
       try {
         await sleep(500 + Math.random() * 300);
 
-        if (card.jobId) {
-          const job = await scrapeLinkedInDetail(page, card);
-          if (job) { jobs.push(job); continue; }
-        }
+        // Always attempt the detail page — jobId from URL is always present now
+        const job = await scrapeLinkedInDetail(page, card);
+        if (job) { jobs.push(job); continue; }
+      } catch { /* detail failed */ }
 
-        // Fallback: build from chip data if detail fetch failed or no jobId
-        const chipParts = [card.salary, ...card.benefits].filter(Boolean);
-        jobs.push(
-          buildJobFromRaw({
-            title: card.title,
-            company: card.company,
-            location: card.location || filters.location || 'Toronto, ON',
-            description: chipParts.join(' · '),
-            datePostedText: card.dateText,
-            sourceUrl: card.href,
-            source: 'LinkedIn',
-            employmentTypeText: card.benefits.join(' '),
-            applyUrl: null,
-            isReposted: card.isReposted,
-          })
-        );
-      } catch { /* skip on error */ }
+      // Fallback: card chip data only
+      const chipParts = [card.salary, ...card.benefits].filter(Boolean);
+      jobs.push(
+        buildJobFromRaw({
+          title: card.title,
+          company: card.company,
+          location: card.location || filters.location || 'Toronto, ON',
+          description: chipParts.join(' · '),
+          datePostedText: card.dateText,
+          sourceUrl: card.href,
+          source: 'LinkedIn',
+          employmentTypeText: card.benefits.join(' '),
+          applyUrl: null,
+          isReposted: card.isReposted,
+        })
+      );
     }
   } finally {
     await page.close();
@@ -166,7 +168,11 @@ async function scrapeLinkedInDetail(
     isReposted: boolean; dateText: string;
   }
 ): Promise<Job | null> {
-  const detailUrl = `https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${card.jobId}`;
+  // jobId must be numeric — extract from URL as final guarantee
+  const resolvedJobId = card.jobId || card.href.match(/\/jobs\/view\/(\d+)/)?.[1] || '';
+  if (!resolvedJobId) return null;
+
+  const detailUrl = `https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${resolvedJobId}`;
 
   await withRetry(async () => {
     await page.goto(detailUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
