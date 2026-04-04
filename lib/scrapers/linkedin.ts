@@ -117,24 +117,23 @@ export async function scrapeLinkedIn(browser: Browser, filters: SearchFilters): 
       if (pageCards.length < 15) break;
     }
 
-    // ── Visit detail pages for first 30 cards (description, salary, exp, apply URL) ──
-    // Remaining cards are built from chip data only to stay within timeout budget.
-    // 30 detail pages × ~1.2s = ~36s — well within the 5-minute limit.
-    const DETAIL_LIMIT = 30;
-
+    // ── Visit detail page for EVERY card ─────────────────────────────────
+    // The guest API detail endpoint returns full job description, employment
+    // type from the criteria section, and the external apply URL.
+    // Card-data is used as fallback if a detail fetch fails.
     for (let i = 0; i < allCards.length; i++) {
       const card = allCards[i];
       if (!card.title || !card.company) continue;
 
       try {
-        await sleep(700 + Math.random() * 500);
+        await sleep(500 + Math.random() * 300);
 
-        if (i < DETAIL_LIMIT && card.jobId) {
+        if (card.jobId) {
           const job = await scrapeLinkedInDetail(page, card);
           if (job) { jobs.push(job); continue; }
         }
 
-        // Card-data-only fallback (cards beyond limit, or detail fetch failed)
+        // Fallback: build from chip data if detail fetch failed or no jobId
         const chipParts = [card.salary, ...card.benefits].filter(Boolean);
         jobs.push(
           buildJobFromRaw({
