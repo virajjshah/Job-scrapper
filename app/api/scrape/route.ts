@@ -8,7 +8,7 @@ import { scrapeGlassdoor } from '@/lib/scrapers/glassdoor';
 import { scrapeCustomUrl } from '@/lib/scrapers/custom';
 import { deduplicateJobs } from '@/lib/deduplication';
 
-export const maxDuration = 300;
+export const maxDuration = 900; // 15 minutes — deep scraping takes time
 
 /**
  * Launch Chromium in a way that works both locally (playwright installed)

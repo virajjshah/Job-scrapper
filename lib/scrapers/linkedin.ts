@@ -44,8 +44,8 @@ export async function scrapeLinkedIn(browser: Browser, filters: SearchFilters): 
     }> = [];
     const seenHrefs = new Set<string>();
 
-    // ── 3 pages × 25 = up to 75 cards ────────────────────────────────────
-    for (const start of [0, 25, 50]) {
+    // ── 5 pages × 25 = up to 125 cards ─────────────────────────────────
+    for (const start of [0, 25, 50, 75, 100]) {
       params.set('start', String(start));
       const searchUrl = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?${params}`;
 
