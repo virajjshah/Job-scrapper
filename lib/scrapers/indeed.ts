@@ -101,11 +101,19 @@ export async function scrapeIndeed(filters: SearchFilters): Promise<Job[]> {
       const ldData = extractJsonLdData(html);
 
       // Full description
-      const description = (
+      let description = (
         root.querySelector('#jobDescriptionText') ??
         root.querySelector('[class*="jobDescriptionText"]') ??
         root.querySelector('[class*="jobsearch-JobComponent-description"]')
-      )?.textContent?.trim() ?? card.descSnippet;
+      )?.textContent?.trim() ?? '';
+
+      if (description.length < 100) {
+        description = root
+          .querySelectorAll('p, li')
+          .map((el) => el.textContent?.trim() ?? '')
+          .filter((t) => t.length > 25)
+          .join('\n') || card.descSnippet;
+      }
 
       // Salary from page (fallback if not in JSON-LD)
       const salaryChip = (

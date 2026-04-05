@@ -69,7 +69,7 @@ export function extractJsonLdData(html: string): {
 
 const INDUSTRY_RULES: [string, RegExp][] = [
   ['Technology', /\b(software|developer|engineer(?:ing)?|devops|cloud|data\s+(science|engineer|analyst)|machine\s+learning|artificial\s+intelligence|AI|cyber|cybersecurity|IT\s+|tech\s+|SaaS|startup|programming|javascript|typescript|python|java|react|backend|frontend|full[- ]?stack|mobile\s+dev|iOS|android|platform\s+engineer|site\s+reliability|QA\s+engineer|test\s+engineer)\b/i],
-  ['Finance & Banking', /\b(finance|financial\s+analyst|banking|investment\s+bank|accounting|accountant|auditor|audit|tax\s+|insurance|mortgage|fintech|trading|hedge\s+fund|equity|wealth\s+management|CFO|CPA|CFA|controller|treasury|actuarial)\b/i],
+  ['Finance & Banking', /\b(finance|financial\s+(analyst|services|planning)|banking|investment\s+(bank|management)|accounting|accountant|auditor|audit|tax\s+|insurance|mortgage|fintech|trading|hedge\s+fund|private\s+equity|asset\s+management|wealth\s+management|portfolio\s+manager|CFO|CPA|CFA|controller|treasury|actuarial|brokerage|capital\s+markets)\b/i],
   ['Healthcare', /\b(healthcare|health\s+care|medical|hospital|clinic|nurse|nursing|physician|doctor|pharma|pharmaceutical|biotech|patient\s+care|dental|therapy|therapist|clinical\s+trial|health\s+informatics|EMR|EHR)\b/i],
   ['Marketing & Advertising', /\b(marketing|advertis|brand\s+manager|content\s+(marketing|strategist)|SEO|SEM|social\s+media|digital\s+marketing|growth\s+hacker|PR\s+|public\s+relations|communications\s+manager|copywriter|creative\s+director|media\s+buyer)\b/i],
   ['Engineering', /\b(mechanical\s+engineer|electrical\s+engineer|civil\s+engineer|structural\s+engineer|chemical\s+engineer|manufacturing\s+engineer|aerospace|automotive\s+engineer|robotics|embedded\s+systems|hardware\s+engineer|industrial\s+engineer|process\s+engineer)\b/i],
@@ -187,10 +187,10 @@ export function buildJobFromRaw(params: {
 
   const datePostedRaw = parseRelativeDate(datePostedText);
 
-  // Industry: use explicit hint if provided, otherwise auto-detect from title+description
+  // Industry: use explicit hint if provided, otherwise auto-detect from title+company+description
   const industry = industryHint !== undefined
     ? (industryHint ? detectIndustry(industryHint) ?? industryHint : null)
-    : detectIndustry(`${title} ${description}`);
+    : detectIndustry(`${title} ${company} ${description}`);
 
   return {
     id: randomUUID(),

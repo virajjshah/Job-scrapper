@@ -166,12 +166,23 @@ async function scrapeLinkedInDetail(card: {
   // JSON-LD structured data — LinkedIn embeds JobPosting schema with salary + employment type
   const ldData = extractJsonLdData(html);
 
-  // Full description
-  const desc = (
+  // Full description — try specific selectors, fall back to all paragraphs/list items
+  let desc = (
     root.querySelector('.description__text') ??
     root.querySelector('.show-more-less-html__markup') ??
+    root.querySelector('section.description') ??
+    root.querySelector('div.description') ??
     root.querySelector('[class*="description"]')
   )?.textContent?.trim() ?? '';
+
+  // Aggressive fallback: harvest all <p> and <li> content from the page
+  if (desc.length < 100) {
+    desc = root
+      .querySelectorAll('p, li')
+      .map((el) => el.textContent?.trim() ?? '')
+      .filter((t) => t.length > 25)
+      .join('\n');
+  }
 
   // Employment type from job criteria list (fallback if not in JSON-LD)
   let empType = ldData.employmentType ?? '';

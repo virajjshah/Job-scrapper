@@ -26,7 +26,7 @@ function formatExp(v: number): string {
 
 function formatDateDays(v: number): string {
   if (v === 0) return 'Any time';
-  if (v === 1) return '24h';
+  if (v < 1) return `${Math.round(v * 24)}h`;
   if (v % 7 === 0) return `${v / 7}w`;
   return `${v}d`;
 }
@@ -167,7 +167,7 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
           </span>
         </div>
         <div className="flex gap-1 mb-2 flex-wrap">
-          {[0, 1, 2, 3, 7, 14, 30].map((d) => (
+          {([0, 1/24, 6/24, 12/24, 1, 2, 3, 7, 14, 30] as number[]).map((d) => (
             <button
               key={d}
               type="button"
@@ -179,23 +179,26 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
                   : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:border-blue-400'
               )}
             >
-              {d === 0 ? 'Any' : d === 1 ? '24h' : d === 2 ? '48h' : d === 3 ? '72h' : d === 7 ? '1w' : d === 14 ? '2w' : '30d'}
+              {d === 0 ? 'Any' : d === 1/24 ? '1h' : d === 6/24 ? '6h' : d === 12/24 ? '12h'
+                : d === 1 ? '24h' : d === 2 ? '48h' : d === 3 ? '3d'
+                : d === 7 ? '1w' : d === 14 ? '2w' : '30d'}
             </button>
           ))}
         </div>
-        <input
-          type="range"
-          min={0}
-          max={30}
-          step={1}
-          value={filters.datePostedDays}
-          onChange={(e) => update('datePostedDays', Number(e.target.value))}
-          aria-label="Max days since posted"
-          className="w-full h-1.5 appearance-none bg-gray-200 dark:bg-gray-700 rounded-full cursor-pointer accent-blue-600"
-        />
-        <div className="flex justify-between text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-          <span>Any time</span>
-          <span>30 days</span>
+        {/* Custom hours input */}
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={1}
+            max={720}
+            placeholder="Custom hours"
+            className="flex-1 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            onChange={(e) => {
+              const h = parseInt(e.target.value, 10);
+              if (!isNaN(h) && h > 0) update('datePostedDays', h / 24);
+            }}
+          />
+          <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">hrs ago</span>
         </div>
       </div>
 

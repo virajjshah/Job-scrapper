@@ -148,12 +148,20 @@ export async function scrapeGlassdoor(filters: SearchFilters): Promise<Job[]> {
       // JSON-LD structured data
       const ldData = extractJsonLdData(html);
 
-      const description = (
+      let description = (
         root.querySelector('[class*="JobDetails"]') ??
         root.querySelector('[data-test="job-description"]') ??
         root.querySelector('.desc') ??
         root.querySelector('[class*="jobDescription"]')
       )?.textContent?.trim() ?? '';
+
+      if (description.length < 100) {
+        description = root
+          .querySelectorAll('p, li')
+          .map((el) => el.textContent?.trim() ?? '')
+          .filter((t) => t.length > 25)
+          .join('\n');
+      }
 
       const salaryChip = (
         root.querySelector('[data-test="salaryEstimate"]') ??

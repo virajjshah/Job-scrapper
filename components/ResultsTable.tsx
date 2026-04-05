@@ -15,7 +15,6 @@ interface ResultsTableProps {
   durationMs: number;
   filters: SearchFilters;
   onExport: () => void;
-  isExporting: boolean;
 }
 
 type ColDef = {
@@ -162,9 +161,8 @@ function SortIcon({ field, sort }: { field: SortField | null; sort: SortState })
     : <ChevronDown size={13} className="text-blue-500" />;
 }
 
-export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durationMs, filters, onExport, isExporting }: ResultsTableProps) {
+export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durationMs, filters, onExport }: ResultsTableProps) {
   const [sort, setSort] = useState<SortState>({ field: 'datePostedRaw', dir: 'desc' });
-  const [hideDuplicates] = useState(true); // Duplicates are already removed server-side; toggle is UX only
   const [filter, setFilter] = useState('');
 
   const handleSort = useCallback((field: SortField | null) => {
@@ -184,7 +182,7 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
     return sort.dir === 'asc' ? cmp : -cmp;
   }, [sort]);
 
-  const { matchingJobs, blurredJobs } = useMemo(() => {
+  const { visibleJobs, hiddenCount } = useMemo(() => {
     let list = [...jobs];
 
     if (filter.trim()) {
@@ -194,20 +192,19 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
           j.title.toLowerCase().includes(q) ||
           j.company.toLowerCase().includes(q) ||
           j.location.toLowerCase().includes(q) ||
-          j.salaryDisplay.toLowerCase().includes(q)
+          j.salaryDisplay.toLowerCase().includes(q) ||
+          (j.industry ?? '').toLowerCase().includes(q)
       );
     }
 
     const matching = list.filter((j) => jobMatchesFilters(j, filters));
-    const blurred = list.filter((j) => !jobMatchesFilters(j, filters));
+    const hidden = list.length - matching.length;
 
     matching.sort(sortFn);
-    blurred.sort(sortFn);
 
-    return { matchingJobs: matching, blurredJobs: blurred };
+    return { visibleJobs: matching, hiddenCount: hidden };
   }, [jobs, filter, filters, sortFn]);
 
-  const totalDisplayed = matchingJobs.length + blurredJobs.length;
   const sourceCount = Object.entries(totalBySource)
     .filter(([, n]) => n > 0)
     .map(([src, n]) => `${n} from ${src}`)
@@ -221,9 +218,9 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex-1 min-w-[200px]">
           <p className="text-sm text-gray-600 dark:text-gray-400 leading-snug">
-            <span className="font-semibold text-gray-900 dark:text-gray-100">{matchingJobs.length} top jobs</span>
-            {blurredJobs.length > 0 && (
-              <span className="text-gray-400 dark:text-gray-500"> + {blurredJobs.length} outside filters</span>
+            <span className="font-semibold text-gray-900 dark:text-gray-100">{visibleJobs.length} jobs</span>
+            {hiddenCount > 0 && (
+              <span className="text-gray-400 dark:text-gray-500"> · {hiddenCount} hidden by filters</span>
             )}
             {sourceCount && <span className="ml-1 text-gray-400 dark:text-gray-500">· {sourceCount}</span>}
             {durationMs > 0 && (
@@ -240,25 +237,20 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
           className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
         />
 
-        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
-          <input type="checkbox" checked={hideDuplicates} readOnly className="rounded border-gray-300 text-blue-600" />
-          Hide duplicates
-        </label>
-
         <button
           onClick={onExport}
-          disabled={isExporting || jobs.length === 0}
+          disabled={jobs.length === 0}
           className={clsx(
             'flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium border transition-colors',
-            isExporting || jobs.length === 0
+            jobs.length === 0
               ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
               : 'bg-green-600 hover:bg-green-700 text-white border-green-600 shadow-sm'
           )}
         >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19.56 3H4.44C3.09 3 2 4.09 2 5.44v13.12C2 19.91 3.09 21 4.44 21h15.12C20.91 21 22 19.91 22 18.56V5.44C22 4.09 20.91 3 19.56 3zM9 17H6v-2h3v2zm0-4H6v-2h3v2zm0-4H6V7h3v2zm4 8h-3v-2h3v2zm0-4h-3v-2h3v2zm0-4h-3V7h3v2zm5 8h-4v-2h4v2zm0-4h-4v-2h4v2zm0-4h-4V7h4v2z" />
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
-          {isExporting ? 'Exporting…' : 'Export to Google Sheets'}
+          Export CSV
         </button>
       </div>
 
@@ -293,67 +285,32 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-            {totalDisplayed === 0 ? (
+            {visibleJobs.length === 0 ? (
               <tr>
                 <td colSpan={COLUMNS.length} className="px-4 py-12 text-center text-gray-400 dark:text-gray-500 text-sm">
-                  No jobs found. Try adjusting your search criteria.
+                  {jobs.length > 0
+                    ? 'All jobs filtered out. Try loosening your filters.'
+                    : 'No jobs found. Try adjusting your search criteria.'}
                 </td>
               </tr>
             ) : (
-              <>
-                {matchingJobs.map((job) => (
-                  <tr
-                    key={job.id}
-                    className={clsx(
-                      'hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors',
-                      job.hasCommission
-                        ? 'bg-amber-50 dark:bg-amber-900/10 hover:bg-amber-100 dark:hover:bg-amber-900/20'
-                        : 'dark:bg-gray-900'
-                    )}
-                  >
-                    {COLUMNS.map((col) => (
-                      <td key={col.label} className={clsx('px-4 py-3 align-top', col.className)}>
-                        {col.render(job)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-
-                {blurredJobs.length > 0 && (
-                  <>
-                    <tr>
-                      <td
-                        colSpan={COLUMNS.length}
-                        className="px-4 py-2 bg-gray-100 dark:bg-gray-800 border-y border-gray-300 dark:border-gray-600"
-                      >
-                        <div className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                          </svg>
-                          {blurredJobs.length} more job{blurredJobs.length !== 1 ? 's' : ''} outside your current filters
-                        </div>
-                      </td>
-                    </tr>
-                    {blurredJobs.map((job) => (
-                      <tr
-                        key={job.id}
-                        className={clsx(
-                          'opacity-45 grayscale-[40%] hover:opacity-80 hover:grayscale-0 transition-all duration-200',
-                          job.hasCommission
-                            ? 'bg-amber-50 dark:bg-amber-900/10'
-                            : 'dark:bg-gray-900'
-                        )}
-                      >
-                        {COLUMNS.map((col) => (
-                          <td key={col.label} className={clsx('px-4 py-3 align-top', col.className)}>
-                            {col.render(job)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </>
-                )}
-              </>
+              visibleJobs.map((job) => (
+                <tr
+                  key={job.id}
+                  className={clsx(
+                    'hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors',
+                    job.hasCommission
+                      ? 'bg-amber-50 dark:bg-amber-900/10 hover:bg-amber-100 dark:hover:bg-amber-900/20'
+                      : 'dark:bg-gray-900'
+                  )}
+                >
+                  {COLUMNS.map((col) => (
+                    <td key={col.label} className={clsx('px-4 py-3 align-top', col.className)}>
+                      {col.render(job)}
+                    </td>
+                  ))}
+                </tr>
+              ))
             )}
           </tbody>
         </table>

@@ -7,32 +7,17 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import type { ScrapeResult, SearchFilters } from '@/types/job';
 import { DEFAULT_FILTERS } from '@/types/job';
-import { Briefcase, AlertCircle, X, CheckCircle, ExternalLink } from 'lucide-react';
+import { Briefcase, AlertCircle, X, CheckCircle } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
-type ToastState = { type: 'success' | 'error'; message: string; url?: string } | null;
+type ToastState = { type: 'success' | 'error'; message: string } | null;
 
 export default function HomePage() {
   const [result, setResult] = useState<ScrapeResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
   const [lastKeywords, setLastKeywords] = useState('');
   const [lastFilters, setLastFilters] = useState<SearchFilters>(DEFAULT_FILTERS);
-
-  // Handle Google OAuth callback tokens in URL params
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const at = params.get('access_token');
-    const rt = params.get('refresh_token');
-    if (at) {
-      sessionStorage.setItem('google_access_token', at);
-      if (rt) sessionStorage.setItem('google_refresh_token', rt);
-      // Clean URL
-      window.history.replaceState({}, '', '/');
-      setToast({ type: 'success', message: 'Google account connected! You can now export to Sheets.' });
-    }
-  }, []);
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -79,52 +64,48 @@ export default function HomePage() {
     }
   }, []);
 
-  const handleExport = useCallback(async () => {
+  const handleExport = useCallback(() => {
     if (!result?.jobs.length) return;
 
-    const accessToken = sessionStorage.getItem('google_access_token');
-    if (!accessToken) {
-      // Initiate OAuth flow
-      window.location.href = '/api/auth/google';
-      return;
-    }
+    const headers = [
+      'Job Title', 'Company', 'Location', 'Work Type', 'Salary',
+      'Salary Min (CAD)', 'Salary Max (CAD)', 'Yrs Experience',
+      'Employment Type', 'Industry', 'Date Posted', 'Source',
+      'Reposted', 'Apply / View Link',
+    ];
 
-    setIsExporting(true);
-    try {
-      const res = await fetch('/api/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobs: result.jobs,
-          keywords: lastKeywords,
-          accessToken,
-          refreshToken: sessionStorage.getItem('google_refresh_token'),
-        }),
-      });
+    const rows = result.jobs.map((job) => [
+      job.title,
+      job.company,
+      job.location,
+      job.workType,
+      job.salaryDisplay,
+      job.salary?.min ?? '',
+      job.salary?.max ?? '',
+      job.yearsExperienceDisplay,
+      job.employmentType ?? '',
+      job.industry ?? '',
+      job.datePosted,
+      job.source,
+      job.isReposted ? 'Yes' : 'No',
+      job.applyUrl ?? job.sourceUrl,
+    ]);
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: 'Export failed' }));
-        throw new Error(err.message);
-      }
+    const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const csv = [headers, ...rows].map((r) => r.map(esc).join(',')).join('\r\n');
 
-      const { spreadsheetUrl, sheetName } = await res.json();
-      setToast({
-        type: 'success',
-        message: `Exported to "${sheetName}"`,
-        url: spreadsheetUrl,
-      });
-    } catch (err: unknown) {
-      const msg = (err as Error)?.message ?? 'Export failed';
-      if (msg.includes('invalid_grant') || msg.includes('401')) {
-        sessionStorage.removeItem('google_access_token');
-        sessionStorage.removeItem('google_refresh_token');
-        setToast({ type: 'error', message: 'Google session expired. Click Export again to reconnect.' });
-      } else {
-        setToast({ type: 'error', message: msg });
-      }
-    } finally {
-      setIsExporting(false);
-    }
+    // BOM so Excel opens UTF-8 correctly
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `jobs-${(lastKeywords || 'search').replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setToast({ type: 'success', message: `Exported ${result.jobs.length} jobs to CSV` });
   }, [result, lastKeywords]);
 
   return (
@@ -138,7 +119,6 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="text-base font-bold text-gray-900 dark:text-gray-100 leading-none">Job Scraper</h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400 leading-none mt-0.5">Toronto / GTA</p>
             </div>
           </div>
           <div className="flex gap-2 ml-4">
@@ -185,7 +165,6 @@ export default function HomePage() {
               durationMs={result.durationMs}
               filters={lastFilters}
               onExport={handleExport}
-              isExporting={isExporting}
             />
           )}
         </main>
@@ -209,16 +188,6 @@ export default function HomePage() {
           )}
           <div className="flex-1 min-w-0">
             <p>{toast.message}</p>
-            {toast.url && (
-              <a
-                href={toast.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-green-700 hover:underline font-medium mt-1"
-              >
-                Open Spreadsheet <ExternalLink size={12} />
-              </a>
-            )}
           </div>
           <button onClick={() => setToast(null)} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
             <X size={16} />
