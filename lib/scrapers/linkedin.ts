@@ -1,6 +1,6 @@
 import { parse } from 'node-html-parser';
 import type { Job, SearchFilters } from '@/types/job';
-import { buildJobFromRaw, randomUserAgent, sleep } from './utils';
+import { buildJobFromRaw, randomUserAgent, sleep, extractJsonLdData } from './utils';
 
 const WORK_TYPE_MAP: Record<string, string> = {
   Remote: '2', Hybrid: '3', 'On-site': '1', Any: '',
@@ -163,6 +163,9 @@ async function scrapeLinkedInDetail(card: {
   const html = await liGet(detailUrl);
   const root = parse(html);
 
+  // JSON-LD structured data — LinkedIn embeds JobPosting schema with salary + employment type
+  const ldData = extractJsonLdData(html);
+
   // Full description
   const desc = (
     root.querySelector('.description__text') ??
@@ -170,13 +173,15 @@ async function scrapeLinkedInDetail(card: {
     root.querySelector('[class*="description"]')
   )?.textContent?.trim() ?? '';
 
-  // Employment type from job criteria list
-  let empType = '';
-  for (const item of root.querySelectorAll('.description__job-criteria-item, [class*="job-criteria-item"]')) {
-    const label = item.querySelector('h3')?.textContent?.toLowerCase() ?? '';
-    if (label.includes('employment type') || label.includes('job type')) {
-      empType = item.querySelector('span')?.textContent?.trim() ?? '';
-      break;
+  // Employment type from job criteria list (fallback if not in JSON-LD)
+  let empType = ldData.employmentType ?? '';
+  if (!empType) {
+    for (const item of root.querySelectorAll('.description__job-criteria-item, [class*="job-criteria-item"]')) {
+      const label = item.querySelector('h3')?.textContent?.toLowerCase() ?? '';
+      if (label.includes('employment type') || label.includes('job type')) {
+        empType = item.querySelector('span')?.textContent?.trim() ?? '';
+        break;
+      }
     }
   }
 
@@ -191,7 +196,7 @@ async function scrapeLinkedInDetail(card: {
     }
   }
 
-  // Merge chip data into description so parsers see salary ranges + work type from chips
+  // Merge chip data + JSON-LD salary hint into description for parsing
   const chipParts = [card.salary, ...card.benefits].filter(Boolean);
   const fullDescription = [chipParts.join(' · '), desc].filter(Boolean).join('\n\n');
   const empTypeText = empType || card.benefits.join(' ');
@@ -207,5 +212,7 @@ async function scrapeLinkedInDetail(card: {
     employmentTypeText: empTypeText,
     applyUrl,
     isReposted: card.isReposted,
+    salaryHint: ldData.salary,
+    industryHint: ldData.industry ?? null,
   });
 }

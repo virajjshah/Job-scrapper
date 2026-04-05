@@ -34,7 +34,7 @@ const MINIMUM_RE =
   /(?:minimum|min\.?|at\s+least)\s+(\d+)\s+(?:years?|yrs?)/i;
 
 const YEARS_OF_RE =
-  /(\d+)\s+(?:years?|yrs?)\s+of(?:\s+relevant|\s+related|\s+professional|\s+hands[- ]on)?\s+(?:work\s+)?(?:experience|exp\.?)/i;
+  /(\d+)\s+(?:years?|yrs?)(?:'s?)?\s+(?:of\s+)?(?:relevant\s+|related\s+|professional\s+|hands[- ]on\s+)?(?:work\s+)?(?:experience|exp\.?)/i;
 
 const EXPERIENCE_COLON_RE =
   /(?:experience|exp\.?)[:\s]+(\d+)\s*\+?\s*(?:years?|yrs?)/i;

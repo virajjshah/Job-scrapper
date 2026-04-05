@@ -20,6 +20,82 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Extracts salary, employmentType, and industry from JSON-LD JobPosting schema
+ * embedded in raw HTML. LinkedIn, Indeed and many job boards include this.
+ */
+export function extractJsonLdData(html: string): {
+  salary?: string;
+  employmentType?: string;
+  industry?: string;
+} {
+  const scriptRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = scriptRe.exec(html)) !== null) {
+    try {
+      const schema = JSON.parse(m[1]);
+      const entry = Array.isArray(schema) ? schema.find((s) => s['@type'] === 'JobPosting') : schema;
+      if (!entry || entry['@type'] !== 'JobPosting') continue;
+
+      const result: { salary?: string; employmentType?: string; industry?: string } = {};
+
+      if (entry.employmentType) {
+        result.employmentType = Array.isArray(entry.employmentType)
+          ? entry.employmentType.join(' ')
+          : String(entry.employmentType);
+      }
+
+      if (entry.industry) result.industry = String(entry.industry);
+      if (entry.occupationalCategory) result.industry = String(entry.occupationalCategory);
+
+      const bs = entry.baseSalary;
+      if (bs) {
+        const v = bs.value ?? bs;
+        const min = v.minValue ?? null;
+        const max = v.maxValue ?? v.value ?? null;
+        const unit = (v.unitText ?? bs.unitText ?? '').toLowerCase();
+        if (min != null && max != null) {
+          result.salary = `$${min} - $${max}${unit ? ` per ${unit}` : ''}`;
+        } else if (max != null) {
+          result.salary = `$${max}${unit ? ` per ${unit}` : ''}`;
+        }
+      }
+
+      return result;
+    } catch { /* skip malformed */ }
+  }
+  return {};
+}
+
+const INDUSTRY_RULES: [string, RegExp][] = [
+  ['Technology', /\b(software|developer|engineer(?:ing)?|devops|cloud|data\s+(science|engineer|analyst)|machine\s+learning|artificial\s+intelligence|AI|cyber|cybersecurity|IT\s+|tech\s+|SaaS|startup|programming|javascript|typescript|python|java|react|backend|frontend|full[- ]?stack|mobile\s+dev|iOS|android|platform\s+engineer|site\s+reliability|QA\s+engineer|test\s+engineer)\b/i],
+  ['Finance & Banking', /\b(finance|financial\s+analyst|banking|investment\s+bank|accounting|accountant|auditor|audit|tax\s+|insurance|mortgage|fintech|trading|hedge\s+fund|equity|wealth\s+management|CFO|CPA|CFA|controller|treasury|actuarial)\b/i],
+  ['Healthcare', /\b(healthcare|health\s+care|medical|hospital|clinic|nurse|nursing|physician|doctor|pharma|pharmaceutical|biotech|patient\s+care|dental|therapy|therapist|clinical\s+trial|health\s+informatics|EMR|EHR)\b/i],
+  ['Marketing & Advertising', /\b(marketing|advertis|brand\s+manager|content\s+(marketing|strategist)|SEO|SEM|social\s+media|digital\s+marketing|growth\s+hacker|PR\s+|public\s+relations|communications\s+manager|copywriter|creative\s+director|media\s+buyer)\b/i],
+  ['Engineering', /\b(mechanical\s+engineer|electrical\s+engineer|civil\s+engineer|structural\s+engineer|chemical\s+engineer|manufacturing\s+engineer|aerospace|automotive\s+engineer|robotics|embedded\s+systems|hardware\s+engineer|industrial\s+engineer|process\s+engineer)\b/i],
+  ['Sales', /\b(sales\s+|account\s+executive|business\s+development|BDR|SDR|revenue\s+|quota|CRM|salesforce|customer\s+success|account\s+manager|closing\s+deals|sales\s+pipeline|inside\s+sales|enterprise\s+sales)\b/i],
+  ['Human Resources', /\b(human\s+resources|HR\s+|recruiter|recruiting|talent\s+acquisition|people\s+operations|HRBP|payroll|compensation\s+and\s+benefits|organizational\s+development|workforce\s+planning|onboarding|CHRO)\b/i],
+  ['Legal', /\b(legal\s+|lawyer|attorney|paralegal|compliance\s+officer|litigation|corporate\s+law|intellectual\s+property|contract\s+law|counsel|barrister|solicitor|law\s+firm|in-house\s+legal)\b/i],
+  ['Education', /\b(education|teacher|instructor|professor|tutor|curriculum|school\s+|university|college|e-learning|training\s+coordinator|academic|teaching|learning\s+&\s+development|L&D\s+|instructional\s+design)\b/i],
+  ['Construction & Real Estate', /\b(construction|real\s+estate|property\s+management|architect|general\s+contractor|builder|renovation|facilities\s+manager|HVAC|plumbing|electrical\s+contractor|site\s+superintendent|project\s+manager.*construction|estimator)\b/i],
+  ['Retail & Consumer Goods', /\b(retail\s+|store\s+manager|merchandise|buyer\s+|ecommerce|e-commerce|consumer\s+goods|CPG|FMCG|fashion|apparel|inventory\s+management|category\s+management|visual\s+merchandising)\b/i],
+  ['Manufacturing', /\b(manufacturing|production\s+manager|plant\s+manager|assembly|operations\s+manager|quality\s+control|quality\s+assurance|supply\s+chain\s+|lean\s+manufacturing|six\s+sigma|warehouse\s+|forklift|CNC|machinist)\b/i],
+  ['Consulting', /\b(consulting|management\s+consulting|strategy\s+consulting|advisory\s+|McKinsey|Deloitte|Accenture|KPMG|Ernst\s*&\s*Young|PwC|BCG|Bain|Oliver\s+Wyman|consultant\b)\b/i],
+  ['Government & Non-profit', /\b(government|municipal|federal|provincial|non-?profit|NGO|charity|public\s+sector|policy\s+analyst|regulatory\s+affairs|crown\s+corporation|social\s+services|public\s+administration)\b/i],
+  ['Media & Entertainment', /\b(media\s+|entertainment|film|video\s+production|broadcasting|journalism|journalist|editor\s+|content\s+creator|streaming|podcast|animation|game\s+developer|gaming|esports)\b/i],
+  ['Logistics & Supply Chain', /\b(logistics|supply\s+chain|procurement|strategic\s+sourcing|distribution\s+center|freight|transportation\s+|fleet\s+manager|customs\s+broker|import\/export|3PL|warehouse\s+manager|inventory\s+planner)\b/i],
+  ['Energy & Utilities', /\b(energy\s+|oil\s+and\s+gas|petroleum|renewable\s+energy|solar|wind\s+energy|nuclear|utilities|power\s+plant|electrical\s+grid|pipeline|mining|natural\s+resources)\b/i],
+  ['Hospitality & Tourism', /\b(hospitality|hotel|restaurant|food\s+service|chef|culinary|tourism|travel\s+|airline|cruise|event\s+manager|catering|bartender|front\s+desk|housekeeping|resort)\b/i],
+];
+
+export function detectIndustry(text: string): string | null {
+  if (!text) return null;
+  for (const [industry, re] of INDUSTRY_RULES) {
+    if (re.test(text)) return industry;
+  }
+  return null;
+}
+
 export async function withRetry<T>(
   fn: () => Promise<T>,
   retries = 3,
@@ -86,14 +162,21 @@ export function buildJobFromRaw(params: {
   employmentTypeText?: string;
   applyUrl?: string | null;
   isReposted?: boolean;
+  /** Extra salary text from JSON-LD or scraped chip — prepended before parsing */
+  salaryHint?: string;
+  /** Industry string hint from JSON-LD or scraper (used instead of auto-detection) */
+  industryHint?: string | null;
 }): Job {
   const {
     title, company, location, description, datePostedText,
     sourceUrl, source, employmentTypeText,
     applyUrl = null, isReposted = false,
+    salaryHint, industryHint,
   } = params;
 
-  const salaryInfo = parseSalary(description);
+  // Prepend salary hint so the parser sees explicit values first
+  const salaryText = [salaryHint, description].filter(Boolean).join('\n');
+  const salaryInfo = parseSalary(salaryText);
   const { years, display: expDisplay } = parseExperience(description);
   const workType = detectWorkType(`${location} ${description}`);
   const employmentType = employmentTypeText
@@ -103,6 +186,11 @@ export function buildJobFromRaw(params: {
   const reposted = isReposted || detectReposted(datePostedText);
 
   const datePostedRaw = parseRelativeDate(datePostedText);
+
+  // Industry: use explicit hint if provided, otherwise auto-detect from title+description
+  const industry = industryHint !== undefined
+    ? (industryHint ? detectIndustry(industryHint) ?? industryHint : null)
+    : detectIndustry(`${title} ${description}`);
 
   return {
     id: randomUUID(),
@@ -124,6 +212,7 @@ export function buildJobFromRaw(params: {
     hasCommission: salaryInfo?.hasCommission ?? false,
     isLanguageFrench: isFrench,
     isReposted: reposted,
+    industry,
   };
 }
 
@@ -169,13 +258,13 @@ function formatRelativeDate(date: Date | null): string {
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return '1 day ago';
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 14) return '1 week ago';
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-  if (diffDays < 60) return '1 month ago';
-  return `${Math.floor(diffDays / 30)} months ago`;
+  if (diffDays <= 0) return 'Today';
+  if (diffDays === 1) return '1d';
+  if (diffDays < 7) return `${diffDays}d`;
+  if (diffDays < 14) return '1w';
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w`;
+  if (diffDays < 60) return '1mo';
+  return `${Math.floor(diffDays / 30)}mo`;
 }
 
 /** Returns true if job passes the datePostedDays filter (0 = any time). */

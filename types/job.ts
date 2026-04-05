@@ -34,6 +34,7 @@ export interface Job {
   hasCommission: boolean;
   isLanguageFrench: boolean;
   isReposted: boolean;
+  industry: string | null;
 }
 
 export interface SearchFilters {

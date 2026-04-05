@@ -1,6 +1,6 @@
 import { parse } from 'node-html-parser';
 import type { Job, SearchFilters } from '@/types/job';
-import { buildJobFromRaw, randomUserAgent, sleep } from './utils';
+import { buildJobFromRaw, randomUserAgent, sleep, extractJsonLdData } from './utils';
 
 async function indeedGet(url: string): Promise<string> {
   const res = await fetch(url, {
@@ -97,6 +97,9 @@ export async function scrapeIndeed(filters: SearchFilters): Promise<Job[]> {
       const html = await indeedGet(card.link);
       const root = parse(html);
 
+      // JSON-LD — Indeed embeds JobPosting schema with salary + employment type
+      const ldData = extractJsonLdData(html);
+
       // Full description
       const description = (
         root.querySelector('#jobDescriptionText') ??
@@ -104,34 +107,36 @@ export async function scrapeIndeed(filters: SearchFilters): Promise<Job[]> {
         root.querySelector('[class*="jobsearch-JobComponent-description"]')
       )?.textContent?.trim() ?? card.descSnippet;
 
-      // Salary
-      const salary = (
+      // Salary from page (fallback if not in JSON-LD)
+      const salaryChip = (
         root.querySelector('[class*="salaryInfoAndJobType"]') ??
         root.querySelector('[id*="salaryInfo"]') ??
         root.querySelector('[class*="salary"]')
       )?.textContent?.trim() ?? '';
 
-      // Employment type from metadata chips
-      let employmentType = '';
-      for (const el of root.querySelectorAll('[data-testid="attribute_snippet_testid"], [class*="metadata"] span')) {
-        const t = el.textContent?.toLowerCase() ?? '';
-        if (t.includes('full-time') || t.includes('part-time') || t.includes('contract') || t.includes('permanent')) {
-          employmentType = el.textContent?.trim() ?? '';
-          break;
+      // Employment type from metadata chips (fallback)
+      let employmentType = ldData.employmentType ?? '';
+      if (!employmentType) {
+        for (const el of root.querySelectorAll('[data-testid="attribute_snippet_testid"], [class*="metadata"] span')) {
+          const t = el.textContent?.toLowerCase() ?? '';
+          if (t.includes('full-time') || t.includes('part-time') || t.includes('contract') || t.includes('permanent')) {
+            employmentType = el.textContent?.trim() ?? '';
+            break;
+          }
         }
       }
-
-      const fullDesc = [salary, description].filter(Boolean).join('\n');
 
       jobs.push(buildJobFromRaw({
         title: card.title,
         company: card.company,
         location: card.location,
-        description: fullDesc,
+        description,
         datePostedText: card.pubDate,
         sourceUrl: card.link,
         source: 'Indeed',
         employmentTypeText: employmentType,
+        salaryHint: ldData.salary ?? salaryChip ?? undefined,
+        industryHint: ldData.industry ?? null,
       }));
     } catch {
       // Fallback: use RSS snippet data

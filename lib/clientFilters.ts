@@ -33,11 +33,15 @@ export function jobMatchesFilters(job: Job, filters: SearchFilters): boolean {
   }
 
   // Experience — only filter when the job actually has experience data
-  // No experience detected → always passes (same as null employmentType)
   const hasExp = job.yearsExperience !== null;
   if (hasExp && job.yearsExperience !== null) {
     if (job.yearsExperience < filters.expMin) return false;
     if (filters.expMax < 15 && job.yearsExperience > filters.expMax) return false;
+  }
+
+  // Industry — only filter when job has a detected industry AND user has selected industries
+  if (filters.industries.length > 0 && job.industry) {
+    if (!filters.industries.includes(job.industry)) return false;
   }
 
   return true;

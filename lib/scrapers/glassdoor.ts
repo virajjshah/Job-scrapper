@@ -1,6 +1,6 @@
 import { parse } from 'node-html-parser';
 import type { Job, SearchFilters } from '@/types/job';
-import { buildJobFromRaw, randomUserAgent, sleep } from './utils';
+import { buildJobFromRaw, randomUserAgent, sleep, extractJsonLdData } from './utils';
 
 const CITY_IDS: Record<string, string> = {
   default: '2281069',
@@ -145,6 +145,9 @@ export async function scrapeGlassdoor(filters: SearchFilters): Promise<Job[]> {
       const html = await gdGet(card.href);
       const root = parse(html);
 
+      // JSON-LD structured data
+      const ldData = extractJsonLdData(html);
+
       const description = (
         root.querySelector('[class*="JobDetails"]') ??
         root.querySelector('[data-test="job-description"]') ??
@@ -152,17 +155,19 @@ export async function scrapeGlassdoor(filters: SearchFilters): Promise<Job[]> {
         root.querySelector('[class*="jobDescription"]')
       )?.textContent?.trim() ?? '';
 
-      const salary = (
+      const salaryChip = (
         root.querySelector('[data-test="salaryEstimate"]') ??
         root.querySelector('[class*="salary"]')
       )?.textContent?.trim() ?? '';
 
-      let empType = '';
-      for (const el of root.querySelectorAll('[class*="JobDetails"] span, [class*="jobInfo"] span')) {
-        const t = el.textContent?.toLowerCase() ?? '';
-        if (t.includes('full-time') || t.includes('part-time') || t.includes('contract')) {
-          empType = el.textContent?.trim() ?? '';
-          break;
+      let empType = ldData.employmentType ?? '';
+      if (!empType) {
+        for (const el of root.querySelectorAll('[class*="JobDetails"] span, [class*="jobInfo"] span')) {
+          const t = el.textContent?.toLowerCase() ?? '';
+          if (t.includes('full-time') || t.includes('part-time') || t.includes('contract')) {
+            empType = el.textContent?.trim() ?? '';
+            break;
+          }
         }
       }
 
@@ -174,13 +179,15 @@ export async function scrapeGlassdoor(filters: SearchFilters): Promise<Job[]> {
         title: card.title,
         company: card.company,
         location: card.location || filters.location || 'Toronto, ON',
-        description: `${salary} ${card.salary} ${description}`.trim(),
+        description: `${card.salary} ${description}`.trim(),
         datePostedText: card.datePosted,
         sourceUrl: card.href,
         source: 'Glassdoor',
         employmentTypeText: empType,
         applyUrl,
         isReposted: card.isReposted,
+        salaryHint: ldData.salary ?? salaryChip ?? undefined,
+        industryHint: ldData.industry ?? null,
       }));
     } catch {
       // Fallback to card-only data
