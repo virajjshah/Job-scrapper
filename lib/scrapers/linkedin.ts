@@ -111,8 +111,21 @@ export async function scrapeLinkedIn(filters: SearchFilters): Promise<Job[]> {
 
       const location = li.querySelector('.job-search-card__location')?.textContent?.trim() ?? '';
 
-      // Salary chip e.g. "CA$70K/yr – CA$90K/yr"
-      const salary = li.querySelector('.job-search-card__salary-info')?.textContent?.trim() ?? '';
+      // Salary chip — try known classes first, then scan card text for salary-like patterns
+      // LinkedIn changes class names frequently; the regex fallback is the safety net
+      let salary = (
+        li.querySelector('.job-search-card__salary-info') ??
+        li.querySelector('[class*="salary"]') ??
+        li.querySelector('[class*="compensation"]')
+      )?.textContent?.trim() ?? '';
+
+      if (!salary) {
+        const SALARY_RE = /(?:CA\$|C\$|\$)[\d,]+(?:\.\d{1,2})?\s*(?:K|k)?(?:\s*[-–—\/]\s*(?:CA\$|C\$|\$)?[\d,]+(?:\.\d{1,2})?\s*(?:K|k)?)?\s*(?:\/hr|\/hour|\/yr|\/year|\bper hour\b|\bper year\b)/i;
+        for (const el of li.querySelectorAll('span, div')) {
+          const t = (el.textContent ?? '').trim();
+          if (t.length < 80 && SALARY_RE.test(t)) { salary = t; break; }
+        }
+      }
 
       // Work-type / employment-type benefit pills
       const benefits = li.querySelectorAll(
@@ -153,8 +166,8 @@ export async function scrapeLinkedIn(filters: SearchFilters): Promise<Job[]> {
     }
 
     if (!job) {
-      // Card-data fallback
-      const chipParts = [card.salary, ...card.benefits].filter(Boolean);
+      // Card-data fallback — still pass card.salary as explicit hint so parseSalary sees it
+      const chipParts = [...card.benefits].filter(Boolean);
       job = buildJobFromRaw({
         title: card.title,
         company: card.company,
@@ -164,6 +177,7 @@ export async function scrapeLinkedIn(filters: SearchFilters): Promise<Job[]> {
         sourceUrl: card.href,
         source: 'LinkedIn',
         employmentTypeText: card.benefits.join(' '),
+        salaryHint: card.salary || undefined,
         applyUrl: null,
         isReposted: card.isReposted,
       });
@@ -186,6 +200,19 @@ async function scrapeLinkedInDetail(card: {
 
   // JSON-LD structured data — LinkedIn embeds JobPosting schema with salary + employment type
   const ldData = extractJsonLdData(html);
+
+  // Salary chip on the detail page (separate from the description body)
+  // LinkedIn shows this as a styled chip at the top of the posting
+  const detailSalaryEl = (
+    root.querySelector('.compensation__salary') ??
+    root.querySelector('.salary-main-rail__salary') ??
+    root.querySelector('[class*="salary-range"]') ??
+    root.querySelector('[class*="compensation"]') ??
+    root.querySelector('[class*="salary"]')
+  );
+  // Only use it if it looks like a real salary (has $ and a number)
+  const detailSalaryText = detailSalaryEl?.textContent?.trim() ?? '';
+  const detailSalary = /\$[\d,]/.test(detailSalaryText) ? detailSalaryText : '';
 
   // Full description — try specific selectors, fall back to all paragraphs/list items
   let desc = (
@@ -244,7 +271,8 @@ async function scrapeLinkedInDetail(card: {
     employmentTypeText: empTypeText,
     applyUrl,
     isReposted: card.isReposted,
-    salaryHint: ldData.salary,
+    // Combine all salary signals: JSON-LD > detail page chip > search card chip
+    salaryHint: [ldData.salary, detailSalary, card.salary].filter(Boolean).join(' ') || undefined,
     industryHint: ldData.industry ?? null,
   });
 }
