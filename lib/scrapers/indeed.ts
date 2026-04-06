@@ -17,6 +17,24 @@ async function indeedGet(url: string): Promise<string> {
   return res.text();
 }
 
+/** Extract clean text from HTML, preserving line breaks from block elements */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#\d+;/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 /**
  * Scrape Indeed via RSS (reliable, no bot detection) for job listings,
  * then fetch each job page for full description, salary and employment type.
@@ -100,12 +118,16 @@ export async function scrapeIndeed(filters: SearchFilters): Promise<Job[]> {
       // JSON-LD — Indeed embeds JobPosting schema with salary + employment type
       const ldData = extractJsonLdData(html);
 
-      // Full description
-      let description = (
+      // Full description — try multiple selectors
+      const descEl = (
         root.querySelector('#jobDescriptionText') ??
         root.querySelector('[class*="jobDescriptionText"]') ??
-        root.querySelector('[class*="jobsearch-JobComponent-description"]')
-      )?.textContent?.trim() ?? '';
+        root.querySelector('[class*="jobsearch-JobComponent-description"]') ??
+        root.querySelector('[data-testid="jobDescription"]') ??
+        root.querySelector('[class*="job-description"]')
+      );
+
+      let description = descEl ? htmlToText(descEl.innerHTML) : '';
 
       if (description.length < 100) {
         description = root
@@ -115,17 +137,23 @@ export async function scrapeIndeed(filters: SearchFilters): Promise<Job[]> {
           .join('\n') || card.descSnippet;
       }
 
-      // Salary from page (fallback if not in JSON-LD)
-      const salaryChip = (
+      // Salary from page — try multiple selectors in priority order
+      const salaryEl = (
         root.querySelector('[class*="salaryInfoAndJobType"]') ??
+        root.querySelector('[data-testid="attribute_snippet_testid"]') ??
         root.querySelector('[id*="salaryInfo"]') ??
+        root.querySelector('[class*="salary-snippet"]') ??
+        root.querySelector('[class*="salaryText"]') ??
         root.querySelector('[class*="salary"]')
-      )?.textContent?.trim() ?? '';
+      );
+      const salaryChip = salaryEl?.textContent?.trim() ?? '';
 
       // Employment type from metadata chips (fallback)
       let employmentType = ldData.employmentType ?? '';
       if (!employmentType) {
-        for (const el of root.querySelectorAll('[data-testid="attribute_snippet_testid"], [class*="metadata"] span')) {
+        for (const el of root.querySelectorAll(
+          '[data-testid="attribute_snippet_testid"], [class*="metadata"] span, [class*="jobInfo"] span'
+        )) {
           const t = el.textContent?.toLowerCase() ?? '';
           if (t.includes('full-time') || t.includes('part-time') || t.includes('contract') || t.includes('permanent')) {
             employmentType = el.textContent?.trim() ?? '';
@@ -133,6 +161,9 @@ export async function scrapeIndeed(filters: SearchFilters): Promise<Job[]> {
           }
         }
       }
+
+      // Use JSON-LD salary first, then chip, then snippet
+      const salaryHint = ldData.salary ?? (salaryChip || undefined);
 
       jobs.push(buildJobFromRaw({
         title: card.title,
@@ -143,7 +174,7 @@ export async function scrapeIndeed(filters: SearchFilters): Promise<Job[]> {
         sourceUrl: card.link,
         source: 'Indeed',
         employmentTypeText: employmentType,
-        salaryHint: ldData.salary ?? salaryChip ?? undefined,
+        salaryHint,
         industryHint: ldData.industry ?? null,
       }));
     } catch {

@@ -10,13 +10,24 @@ const COMMISSION_PATTERNS = [
 ];
 
 const HOURLY_PATTERNS = [
-  // $60 - $65/hr  or  $25/hour
-  /\$[\d,]+(?:\.\d{1,2})?(?:\s*[-\u2013\u2014]\s*\$[\d,]+(?:\.\d{1,2})?)?\s*\/?(?:per\s+)?h(?:our|r)\b/i,
+  // $60 - $65/hr  or  $25/hour  or  $25 an hour  or  CA$25/hr
+  /\$[\d,]+(?:\.\d{1,2})?(?:\s*[-\u2013\u2014]\s*\$[\d,]+(?:\.\d{1,2})?)?\s*\/?(?:per\s+|an?\s+)?h(?:our|r)\b/i,
+  /CA\$[\d,]+(?:\.\d{1,2})?(?:\s*[-\u2013\u2014]\s*CA\$[\d,]+(?:\.\d{1,2})?)?\s*\/h(?:r|our)/i,
+  // $25 an hour / $25 per hour (no slash)
   /\$[\d,]+(?:\.\d{1,2})?\s*(?:an?|per)\s+hour/i,
   // 25 - 30 per hour (no $)
-  /\b[\d,]+(?:\.\d{1,2})?\s*(?:[-\u2013\u2014]|to)\s*[\d,]+(?:\.\d{1,2})?\s*\/?(?:per\s+)?h(?:our|r)\b/i,
-  // CA$25/hr
-  /CA\$[\d,]+(?:\.\d{1,2})?(?:\s*[-\u2013\u2014]\s*CA\$[\d,]+(?:\.\d{1,2})?)?\s*\/h(?:r|our)/i,
+  /\b[\d,]+(?:\.\d{1,2})?\s*(?:[-\u2013\u2014]|to)\s*[\d,]+(?:\.\d{1,2})?\s*\/?(?:per\s+|an?\s+)?h(?:our|r)\b/i,
+  // $25 - $35 an hour (range then period)
+  /\$[\d,]+(?:\.\d{1,2})?\s*[-\u2013\u2014]\s*\$[\d,]+(?:\.\d{1,2})?\s+an?\s+hour/i,
+];
+
+const MONTHLY_PATTERNS = [
+  /\$[\d,]+(?:\.\d{1,2})?(?:\s*[-\u2013\u2014]\s*\$[\d,]+(?:\.\d{1,2})?)?\s*\/\s*(?:month|mo)\b/i,
+  /\$[\d,]+(?:\.\d{1,2})?(?:\s*[-\u2013\u2014]\s*\$[\d,]+(?:\.\d{1,2})?)?\s*(?:per|a)\s+month\b/i,
+  /CA\$[\d,]+(?:\.\d{1,2})?(?:\s*[-\u2013\u2014]\s*CA\$[\d,]+(?:\.\d{1,2})?)?\s*\/\s*(?:month|mo)\b/i,
+  /\bper\s+month\b/i,
+  // "per month" in JSON-LD output
+  /\$[\d,]+(?:\.\d{1,2})?.*\bper\s+month\b/i,
 ];
 
 // Range separator: dash / en-dash / em-dash / "to"
@@ -28,22 +39,30 @@ function numTok(prefix = '\\$?') {
 
 const RANGE_PATTERNS: RegExp[] = [
   // CA$70K/yr – CA$75K/yr  (LinkedIn card chip format)
-  /CA\$\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hour|\/hr)?\s*(?:[-\u2013\u2014]|to)\s*CA\$?\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hour|\/hr)?/i,
+  /CA\$\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hour|\/hr|\/month|\/mo)?\s*(?:[-\u2013\u2014]|to)\s*CA\$?\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hour|\/hr|\/month|\/mo)?/i,
   // $60K – $80K  |  $60,000 – $80,000  |  $60K – 80K  |  $60–65/hr
-  new RegExp(`\\${numTok('\\$')}${SEP}\\$?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*(K|k)?`, 'i'),
+  new RegExp(`\\$\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*(K|k)?${SEP}\\$?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*(K|k)?`, 'i'),
   // between $60K and $80K  |  from $60,000 to $80,000
-  new RegExp(`(?:between|from)\\s+${numTok('\\$')}\\s+(?:and|to)\\s+\\$?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*(K|k)?`, 'i'),
+  new RegExp(`(?:between|from)\\s+\\$\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*(K|k)?\\s+(?:and|to)\\s+\\$?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*(K|k)?`, 'i'),
   // CAD 60,000 – 80,000  |  CAD $60K – $80K
-  new RegExp(`\\bCAD\\s*${numTok('\\$?')}${SEP}\\$?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*(K|k)?`, 'i'),
+  new RegExp(`\\bCAD\\s*\\$?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*(K|k)?${SEP}\\$?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*(K|k)?`, 'i'),
   // 60,000 – 80,000 [per year/annually/CAD/yr]  — comma-formatted, no $ needed
-  new RegExp(`(?<![\\d,])([\\d]{2,3},[\\d]{3})\\s*(K|k)?${SEP}([\\d]{2,3},[\\d]{3})\\s*(K|k)?(?=\\s*(?:\\/yr|\\/year|\\byr\\b|per\\s+year|annually|per\\s+annum|\\bCAD\\b|\\bUSD\\b|\\s*$))`, 'i'),
+  new RegExp(`(?<![\\d,])([\\d]{2,3},[\\d]{3})\\s*(K|k)?${SEP}([\\d]{2,3},[\\d]{3})\\s*(K|k)?(?=\\s*(?:\\/yr|\\/year|\\byr\\b|per\\s+year|a\\s+year|annually|per\\s+annum|\\bCAD\\b|\\bUSD\\b|\\s*$))`, 'i'),
 ];
 
 const SINGLE_VALUE_PATTERNS: RegExp[] = [
   // CA$80K/yr or $80,000/yr or CAD $80K
-  /CA\$\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hr|\/hour)?/i,
-  /(?:CAD\s*)?\$\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k|M|m)?(?:\s*(?:\/yr|\/year|per year|annually|\/hr|\/hour|per hour))?/i,
+  /CA\$\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hr|\/hour|\/month|\/mo)?/i,
+  /(?:CAD\s*)?\$\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k|M|m)?(?:\s*(?:\/yr|\/year|per year|a year|annually|\/hr|\/hour|per hour|an hour|\/month|\/mo|per month))?/i,
 ];
+
+/** Strip Glassdoor/employer estimation parentheticals before parsing */
+function normalizeText(text: string): string {
+  return text
+    .replace(/\((?:Employer|Glassdoor|Company|Indeed)\s+est\.?\)/gi, '')
+    .replace(/\bEst(?:imated)?\.?\b/gi, '')
+    .trim();
+}
 
 function parseNumber(raw: string, kSuffix: boolean): number {
   const cleaned = raw.replace(/,/g, '');
@@ -67,14 +86,24 @@ function hourlyToAnnual(hourly: number): number {
   return Math.round(hourly * 40 * 52);
 }
 
-export function parseSalary(text: string): SalaryInfo | null {
-  if (!text || text.trim().length === 0) return null;
+function monthlyToAnnual(monthly: number): number {
+  return Math.round(monthly * 12);
+}
+
+export function parseSalary(rawText: string): SalaryInfo | null {
+  if (!rawText || rawText.trim().length === 0) return null;
+
+  const text = normalizeText(rawText);
 
   const { hasCommission, note: commissionNote } = detectCommission(text);
 
-  // Detect if hourly — but /yr suffix overrides (CA$70K/yr is annual, not hourly)
-  const hasYearSuffix = /\/yr\b|\/year\b|\bper\s+year\b|\bannually\b|\bper\s+annum\b/i.test(text);
-  const isHourly = !hasYearSuffix && HOURLY_PATTERNS.some((p) => p.test(text));
+  // Detect annual/hourly/monthly period
+  // Annual: /yr, /year, per year, annually, per annum, a year
+  const hasYearSuffix = /\/yr\b|\/year\b|\bper\s+year\b|\bannually\b|\bper\s+annum\b|\ba\s+year\b/i.test(text);
+  // Monthly: /month, per month, a month
+  const hasMonthSuffix = !hasYearSuffix && MONTHLY_PATTERNS.some((p) => p.test(text));
+  // Hourly: override by year suffix
+  const isHourly = !hasYearSuffix && !hasMonthSuffix && HOURLY_PATTERNS.some((p) => p.test(text));
 
   // Try to extract a range first
   for (const pattern of RANGE_PATTERNS) {
@@ -111,7 +140,20 @@ export function parseSalary(text: string): SalaryInfo | null {
         isEstimated: true,
         hasCommission,
         commissionNote,
-        raw: text,
+        raw: rawText,
+      };
+    }
+
+    if (hasMonthSuffix) {
+      return {
+        min: monthlyToAnnual(lo),
+        max: monthlyToAnnual(hi),
+        currency: 'CAD',
+        period: 'annual',
+        isEstimated: true,
+        hasCommission,
+        commissionNote,
+        raw: rawText,
       };
     }
 
@@ -123,7 +165,7 @@ export function parseSalary(text: string): SalaryInfo | null {
       isEstimated: false,
       hasCommission,
       commissionNote,
-      raw: text,
+      raw: rawText,
     };
   }
 
@@ -134,17 +176,28 @@ export function parseSalary(text: string): SalaryInfo | null {
       const value = parseNumber(match[1], !!(match[2] && /k/i.test(match[2])));
       if (isNaN(value) || value <= 0) continue;
 
-      const annualValue = isHourly ? hourlyToAnnual(value) : value;
+      // Sanity check: single values should be > $10 (hourly min) or > $1000 (annual min)
+      if (isHourly && value < 5) continue;
+      if (!isHourly && !hasMonthSuffix && value < 1000 && value > 0) continue;
+
+      let annualValue: number;
+      if (isHourly) {
+        annualValue = hourlyToAnnual(value);
+      } else if (hasMonthSuffix) {
+        annualValue = monthlyToAnnual(value);
+      } else {
+        annualValue = value;
+      }
 
       return {
         min: annualValue,
         max: annualValue,
         currency: 'CAD',
         period: 'annual',
-        isEstimated: isHourly,
+        isEstimated: isHourly || hasMonthSuffix,
         hasCommission,
         commissionNote,
-        raw: text,
+        raw: rawText,
       };
     }
   }
@@ -159,7 +212,7 @@ export function parseSalary(text: string): SalaryInfo | null {
       isEstimated: false,
       hasCommission: true,
       commissionNote,
-      raw: text,
+      raw: rawText,
     };
   }
 

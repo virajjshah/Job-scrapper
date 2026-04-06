@@ -54,6 +54,33 @@ async function gdGet(url: string): Promise<string> {
   return res.text();
 }
 
+/** Strip Glassdoor estimation annotations like "(Employer est.)" "(Glassdoor est.)" */
+function cleanGlassdoorSalary(text: string): string {
+  return text
+    .replace(/\((?:Employer|Glassdoor|Company|Indeed)\s+est\.?\)/gi, '')
+    .replace(/\bEst(?:imated)?\.?\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+/** Extract clean text from HTML, preserving line breaks */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#\d+;/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 export async function scrapeGlassdoor(filters: SearchFilters): Promise<Job[]> {
   const jobs: Job[] = [];
 
@@ -117,11 +144,12 @@ export async function scrapeGlassdoor(filters: SearchFilters): Promise<Job[]> {
         card.querySelector('[class*="location"]')
       )?.textContent?.trim() ?? '';
 
-      const salary = (
+      const rawSalary = (
         card.querySelector('[data-test="detailSalary"]') ??
         card.querySelector('[data-test="salary-estimate"]') ??
         card.querySelector('[class*="salary"]')
       )?.textContent?.trim() ?? '';
+      const salary = cleanGlassdoorSalary(rawSalary);
 
       const datePosted = (
         card.querySelector('[data-test="listing-age"]') ??
@@ -148,12 +176,17 @@ export async function scrapeGlassdoor(filters: SearchFilters): Promise<Job[]> {
       // JSON-LD structured data
       const ldData = extractJsonLdData(html);
 
-      let description = (
+      // Description — try multiple selectors with HTML-to-text conversion
+      const descEl = (
+        root.querySelector('[class*="JobDetails_jobDescription"]') ??
         root.querySelector('[class*="JobDetails"]') ??
         root.querySelector('[data-test="job-description"]') ??
         root.querySelector('.desc') ??
-        root.querySelector('[class*="jobDescription"]')
-      )?.textContent?.trim() ?? '';
+        root.querySelector('[class*="jobDescription"]') ??
+        root.querySelector('[class*="description"]')
+      );
+
+      let description = descEl ? htmlToText(descEl.innerHTML) : '';
 
       if (description.length < 100) {
         description = root
@@ -163,14 +196,19 @@ export async function scrapeGlassdoor(filters: SearchFilters): Promise<Job[]> {
           .join('\n');
       }
 
-      const salaryChip = (
+      // Salary from detail page (clean estimation annotations)
+      const rawSalaryChip = (
         root.querySelector('[data-test="salaryEstimate"]') ??
+        root.querySelector('[class*="SalaryEstimate"]') ??
         root.querySelector('[class*="salary"]')
       )?.textContent?.trim() ?? '';
+      const salaryChip = rawSalaryChip ? cleanGlassdoorSalary(rawSalaryChip) : '';
 
       let empType = ldData.employmentType ?? '';
       if (!empType) {
-        for (const el of root.querySelectorAll('[class*="JobDetails"] span, [class*="jobInfo"] span')) {
+        for (const el of root.querySelectorAll(
+          '[class*="JobDetails"] span, [class*="jobInfo"] span, [data-test*="job-type"]'
+        )) {
           const t = el.textContent?.toLowerCase() ?? '';
           if (t.includes('full-time') || t.includes('part-time') || t.includes('contract')) {
             empType = el.textContent?.trim() ?? '';
@@ -183,18 +221,21 @@ export async function scrapeGlassdoor(filters: SearchFilters): Promise<Job[]> {
       const applyHref = applyEl?.getAttribute('href') ?? '';
       const applyUrl = applyHref && !applyHref.includes('glassdoor') ? applyHref : null;
 
+      // Build salary hint: prefer JSON-LD, then cleaned chip, then card salary
+      const salaryHint = ldData.salary ?? (salaryChip || undefined) ?? (card.salary || undefined);
+
       jobs.push(buildJobFromRaw({
         title: card.title,
         company: card.company,
         location: card.location || filters.location || 'Toronto, ON',
-        description: `${card.salary} ${description}`.trim(),
+        description: `${card.salary ? card.salary + '\n' : ''}${description}`.trim(),
         datePostedText: card.datePosted,
         sourceUrl: card.href,
         source: 'Glassdoor',
         employmentTypeText: empType,
         applyUrl,
         isReposted: card.isReposted,
-        salaryHint: ldData.salary ?? salaryChip ?? undefined,
+        salaryHint,
         industryHint: ldData.industry ?? null,
       }));
     } catch {

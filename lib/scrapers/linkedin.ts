@@ -9,6 +9,18 @@ const EMP_TYPE_MAP: Record<string, string> = {
   'Full-time': 'F', 'Part-time': 'P', Contract: 'C',
 };
 
+// LinkedIn seniority level → experience years hint (appended to description as text
+// so parseExperience keyword fallbacks can catch it when no explicit years are stated)
+const SENIORITY_TEXT_MAP: Record<string, string> = {
+  'internship': 'Entry level internship co-op',
+  'entry level': 'Entry level junior',
+  'associate': 'Associate mid-level',
+  'mid-senior level': 'Senior',
+  'director': 'Senior director lead principal',
+  'executive': 'Senior executive lead principal',
+  'not applicable': '',
+};
+
 function linkedInDateParam(days: number): string {
   return days > 0 ? `r${days * 24 * 60 * 60}` : '';
 }
@@ -116,10 +128,6 @@ export async function scrapeLinkedIn(filters: SearchFilters): Promise<Job[]> {
   }
 
   // ── Deep scrape every card's detail page ─────────────────────────────
-  // LinkedIn guest API jobPosting endpoint returns full plain-HTML with:
-  // - Complete job description (salary ranges, years of experience mentioned in text)
-  // - Job criteria section (Employment type, Seniority, Industries)
-  // - Apply button (external URL for offsite applications)
   for (const card of allCards) {
     if (!card.title || !card.company) continue;
 
@@ -166,14 +174,31 @@ async function scrapeLinkedInDetail(card: {
   // JSON-LD structured data — LinkedIn embeds JobPosting schema with salary + employment type
   const ldData = extractJsonLdData(html);
 
-  // Full description — try specific selectors, fall back to all paragraphs/list items
+  // Full description — try multiple selectors in priority order
   let desc = (
-    root.querySelector('.description__text') ??
     root.querySelector('.show-more-less-html__markup') ??
+    root.querySelector('.description__text') ??
     root.querySelector('section.description') ??
     root.querySelector('div.description') ??
     root.querySelector('[class*="description"]')
-  )?.textContent?.trim() ?? '';
+  )?.innerHTML ?? '';
+
+  // Strip HTML tags from innerHTML and normalize whitespace
+  if (desc) {
+    desc = desc
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/li>/gi, '\n')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&#\d+;/g, ' ')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
 
   // Aggressive fallback: harvest all <p> and <li> content from the page
   if (desc.length < 100) {
@@ -186,13 +211,20 @@ async function scrapeLinkedInDetail(card: {
 
   // Employment type from job criteria list (fallback if not in JSON-LD)
   let empType = ldData.employmentType ?? '';
-  if (!empType) {
-    for (const item of root.querySelectorAll('.description__job-criteria-item, [class*="job-criteria-item"]')) {
-      const label = item.querySelector('h3')?.textContent?.toLowerCase() ?? '';
-      if (label.includes('employment type') || label.includes('job type')) {
-        empType = item.querySelector('span')?.textContent?.trim() ?? '';
-        break;
-      }
+
+  // Seniority level from job criteria — used as experience hint
+  let seniorityText = '';
+
+  for (const item of root.querySelectorAll('.description__job-criteria-item, [class*="job-criteria-item"]')) {
+    const label = item.querySelector('h3')?.textContent?.toLowerCase() ?? '';
+    const value = item.querySelector('span')?.textContent?.trim() ?? '';
+
+    if (!empType && (label.includes('employment type') || label.includes('job type'))) {
+      empType = value;
+    }
+    if (label.includes('seniority level')) {
+      const key = value.toLowerCase();
+      seniorityText = SENIORITY_TEXT_MAP[key] ?? '';
     }
   }
 
@@ -207,9 +239,14 @@ async function scrapeLinkedInDetail(card: {
     }
   }
 
-  // Merge chip data + JSON-LD salary hint into description for parsing
+  // Merge chip data + seniority hint into description for parsing
   const chipParts = [card.salary, ...card.benefits].filter(Boolean);
-  const fullDescription = [chipParts.join(' · '), desc].filter(Boolean).join('\n\n');
+  const fullDescription = [
+    chipParts.join(' · '),
+    desc,
+    seniorityText,  // appended so experience keyword fallbacks fire
+  ].filter(Boolean).join('\n\n');
+
   const empTypeText = empType || card.benefits.join(' ');
 
   return buildJobFromRaw({

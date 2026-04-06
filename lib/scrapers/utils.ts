@@ -34,34 +34,52 @@ export function extractJsonLdData(html: string): {
   while ((m = scriptRe.exec(html)) !== null) {
     try {
       const schema = JSON.parse(m[1]);
-      const entry = Array.isArray(schema) ? schema.find((s) => s['@type'] === 'JobPosting') : schema;
-      if (!entry || entry['@type'] !== 'JobPosting') continue;
+      // Handle both a single object and an array of objects
+      const entries: unknown[] = Array.isArray(schema) ? schema : [schema];
+      const entry = entries.find(
+        (s) => s && typeof s === 'object' && (s as Record<string, unknown>)['@type'] === 'JobPosting'
+      ) as Record<string, unknown> | undefined;
+      if (!entry) continue;
 
       const result: { salary?: string; employmentType?: string; industry?: string } = {};
 
       if (entry.employmentType) {
         result.employmentType = Array.isArray(entry.employmentType)
-          ? entry.employmentType.join(' ')
+          ? (entry.employmentType as unknown[]).join(' ')
           : String(entry.employmentType);
       }
 
       if (entry.industry) result.industry = String(entry.industry);
       if (entry.occupationalCategory) result.industry = String(entry.occupationalCategory);
 
-      const bs = entry.baseSalary;
-      if (bs) {
-        const v = bs.value ?? bs;
-        const min = v.minValue ?? null;
-        const max = v.maxValue ?? v.value ?? null;
-        const unit = (v.unitText ?? bs.unitText ?? '').toLowerCase();
-        if (min != null && max != null) {
+      // Try baseSalary first, then estimatedSalary (Glassdoor uses estimatedSalary)
+      const salaryField = entry.baseSalary ?? entry.estimatedSalary;
+      if (salaryField && typeof salaryField === 'object') {
+        const bs = salaryField as Record<string, unknown>;
+        // The value may be nested (QuantitativeValue) or flat
+        const v = (bs.value && typeof bs.value === 'object' ? bs.value : bs) as Record<string, unknown>;
+        const min = v.minValue != null ? Number(v.minValue) : null;
+        const max = v.maxValue != null ? Number(v.maxValue) : (v.value != null ? Number(v.value) : null);
+        // Normalize unit to lowercase for salary parser: "YEAR" → "year", "HOUR" → "hour", "MONTH" → "month"
+        const rawUnit = String(v.unitText ?? bs.unitText ?? '').toLowerCase();
+        // Map schema.org unit codes to period words the salary parser understands
+        const unit = rawUnit === 'year' ? 'year'
+          : rawUnit === 'hour' ? 'hour'
+          : rawUnit === 'month' ? 'month'
+          : rawUnit; // pass through any other value
+
+        if (min != null && !isNaN(min) && max != null && !isNaN(max)) {
           result.salary = `$${min} - $${max}${unit ? ` per ${unit}` : ''}`;
-        } else if (max != null) {
+        } else if (max != null && !isNaN(max)) {
           result.salary = `$${max}${unit ? ` per ${unit}` : ''}`;
+        } else if (min != null && !isNaN(min)) {
+          result.salary = `$${min}${unit ? ` per ${unit}` : ''}`;
         }
       }
 
-      return result;
+      if (result.salary || result.employmentType || result.industry) {
+        return result;
+      }
     } catch { /* skip malformed */ }
   }
   return {};
