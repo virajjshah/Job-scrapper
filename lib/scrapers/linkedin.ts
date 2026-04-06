@@ -14,17 +14,33 @@ function linkedInDateParam(days: number): string {
 }
 
 async function liGet(url: string): Promise<string> {
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': randomUserAgent(),
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'en-CA,en;q=0.9',
-      'Cache-Control': 'no-cache',
-    },
-    signal: AbortSignal.timeout(20000),
-  });
-  if (!res.ok) throw new Error(`LinkedIn ${res.status}`);
-  return res.text();
+  let lastErr: Error | undefined;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await sleep(4000 * attempt); // back-off on retry
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': randomUserAgent(),
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-CA,en;q=0.9',
+          'Cache-Control': 'no-cache',
+          'Referer': 'https://www.linkedin.com/jobs/search/',
+          'Upgrade-Insecure-Requests': '1',
+        },
+        signal: AbortSignal.timeout(25000),
+      });
+      if (res.status === 429 || res.status === 503) {
+        lastErr = new Error(`LinkedIn ${res.status}`);
+        continue; // retry after back-off
+      }
+      if (!res.ok) throw new Error(`LinkedIn ${res.status}`);
+      return await res.text();
+    } catch (err) {
+      lastErr = err as Error;
+      if (attempt < 2) continue;
+    }
+  }
+  throw lastErr ?? new Error('LinkedIn: request failed');
 }
 
 export async function scrapeLinkedIn(filters: SearchFilters): Promise<Job[]> {
@@ -59,7 +75,7 @@ export async function scrapeLinkedIn(filters: SearchFilters): Promise<Job[]> {
     let html = '';
     try {
       html = await liGet(searchUrl);
-      await sleep(600 + Math.random() * 400);
+      await sleep(1000 + Math.random() * 500);
     } catch { break; }
 
     const root = parse(html);
@@ -75,8 +91,13 @@ export async function scrapeLinkedIn(filters: SearchFilters): Promise<Job[]> {
       if (!href || seenHrefs.has(href)) continue;
       seenHrefs.add(href);
 
-      // Extract job ID from URL (most reliable) — e.g. /jobs/view/3912345678
-      const jobId = href.match(/\/jobs\/view\/(\d+)/)?.[1] ?? '';
+      // LinkedIn now uses slug URLs: /jobs/view/job-title-at-company-4195892764
+      // The numeric job ID is the LAST numeric segment at the end of the slug.
+      // Also handle legacy plain format: /jobs/view/4195892764
+      const jobId =
+        href.match(/[/-](\d{8,})\/?$/)?.[1] ??   // slug format (new): ends in -XXXXXXXXXX
+        href.match(/\/jobs\/view\/(\d+)/)?.[1] ??  // plain format (old): /view/XXXXXXXXXX
+        '';
 
       const title = (
         li.querySelector('.base-search-card__title')?.textContent ??
@@ -126,7 +147,7 @@ export async function scrapeLinkedIn(filters: SearchFilters): Promise<Job[]> {
     let job: Job | null = null;
     if (card.jobId) {
       try {
-        await sleep(400 + Math.random() * 300);
+        await sleep(1200 + Math.random() * 800); // 1.2–2s: paces requests, avoids 429
         job = await scrapeLinkedInDetail(card);
       } catch { /* fall through to card-only */ }
     }
