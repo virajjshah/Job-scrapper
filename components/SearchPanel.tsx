@@ -42,6 +42,7 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
   const [filters, setFilters] = useState<SearchFilters>(DEFAULT_FILTERS);
   const [showAdvanced, setShowAdvanced] = useState(true);
   const [showIndustryDD, setShowIndustryDD] = useState(false);
+  const [customHours, setCustomHours] = useState('');
   const industryRef = useRef<HTMLDivElement>(null);
   const [newUrl, setNewUrl] = useState('');
 
@@ -171,7 +172,7 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
             <button
               key={d}
               type="button"
-              onClick={() => update('datePostedDays', d)}
+              onClick={() => { update('datePostedDays', d); setCustomHours(''); }}
               className={clsx(
                 'px-2 py-0.5 text-xs rounded border transition-colors',
                 filters.datePostedDays === d
@@ -191,9 +192,11 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
             type="number"
             min={1}
             max={720}
+            value={customHours}
             placeholder="Custom hours"
             className="flex-1 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             onChange={(e) => {
+              setCustomHours(e.target.value);
               const h = parseInt(e.target.value, 10);
               if (!isNaN(h) && h > 0) update('datePostedDays', h / 24);
             }}

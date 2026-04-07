@@ -136,9 +136,7 @@ export async function scrapeLinkedIn(filters: SearchFilters): Promise<Job[]> {
       // Date & repost
       const timeEl = li.querySelector('time');
       const dateText = timeEl?.textContent?.trim() ?? '';
-      const isReposted =
-        /\breposted\b/i.test(dateText) ||
-        (timeEl?.getAttribute('class') ?? '').includes('--new');
+      const isReposted = /\breposted\b/i.test(dateText);
 
       if (title) {
         allCards.push({ href, jobId, title, company, location, salary, benefits, isReposted, dateText });

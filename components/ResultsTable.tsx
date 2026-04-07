@@ -90,9 +90,14 @@ const COLUMNS: ColDef[] = [
   {
     label: 'Type',
     field: 'employmentType',
-    render: (job) => (
-      <span className="text-sm text-gray-700">{job.employmentType ?? <span className="text-gray-400 italic">—</span>}</span>
-    ),
+    render: (job) => {
+      if (!job.employmentType) return <span className="text-gray-400 dark:text-gray-600 italic text-sm">—</span>;
+      const cls =
+        job.employmentType === 'Full-time' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800' :
+        job.employmentType === 'Part-time' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800' :
+        'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800';
+      return <span className={clsx('inline-block text-xs font-medium rounded px-1.5 py-0.5 border', cls)}>{job.employmentType}</span>;
+    },
     className: 'min-w-[100px]',
   },
   {

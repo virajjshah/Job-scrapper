@@ -10,40 +10,67 @@ const COMMISSION_PATTERNS = [
 ];
 
 const HOURLY_PATTERNS = [
-  // $60 - $65/hr  or  $25/hour
   /\$[\d,]+(?:\.\d{1,2})?(?:\s*[-\u2013\u2014]\s*\$[\d,]+(?:\.\d{1,2})?)?\s*\/?(?:per\s+)?h(?:our|r)\b/i,
   /\$[\d,]+(?:\.\d{1,2})?\s*(?:an?|per)\s+hour/i,
-  // 25 - 30 per hour (no $)
   /\b[\d,]+(?:\.\d{1,2})?\s*(?:[-\u2013\u2014]|to)\s*[\d,]+(?:\.\d{1,2})?\s*\/?(?:per\s+)?h(?:our|r)\b/i,
-  // CA$25/hr
   /CA\$[\d,]+(?:\.\d{1,2})?(?:\s*[-\u2013\u2014]\s*CA\$[\d,]+(?:\.\d{1,2})?)?\s*\/h(?:r|our)/i,
+  /£[\d,]+(?:\.\d{1,2})?\s*(?:[-\u2013\u2014]|to)\s*£?[\d,]+(?:\.\d{1,2})?\s*\/?(?:per\s+)?h(?:our|r)\b/i,
+  /€[\d,]+(?:\.\d{1,2})?\s*(?:[-\u2013\u2014]|to)\s*€?[\d,]+(?:\.\d{1,2})?\s*\/?(?:per\s+)?h(?:our|r)\b/i,
 ];
 
-// Range separator: dash / en-dash / em-dash / "to"
-const SEP = `\\s*(?:[-\\u2013\\u2014]|\\bto\\b)\\s*`;
-// Numeric token with optional $ prefix and optional K suffix (captures num + K)
-function numTok(prefix = '\\$?') {
-  return `${prefix}\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*(K|k)?`;
-}
+// Shared number token: (digits)(optional K suffix)
+const N = `([\\d,]+(?:\\.\\d{1,2})?)\\s*(K|k)?`;
+// Range separator: -, –, —, or "to"
+const S = `\\s*(?:[-\\u2013\\u2014]|\\bto\\b)\\s*`;
 
+/**
+ * All patterns must produce exactly 4 capture groups: (num1)(K1)(num2)(K2)
+ * They are tried in order — most specific first.
+ */
 const RANGE_PATTERNS: RegExp[] = [
-  // CA$70K/yr – CA$75K/yr  (LinkedIn card chip format)
-  /CA\$\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hour|\/hr)?\s*(?:[-\u2013\u2014]|to)\s*CA\$?\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hour|\/hr)?/i,
-  // $60K – $80K  |  $60,000 – $80,000  |  $60K – 80K  |  $60–65/hr
-  new RegExp(`\\${numTok('\\$')}${SEP}\\$?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*(K|k)?`, 'i'),
-  // between $60K and $80K  |  from $60,000 to $80,000
-  new RegExp(`(?:between|from)\\s+${numTok('\\$')}\\s+(?:and|to)\\s+\\$?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*(K|k)?`, 'i'),
-  // CAD 60,000 – 80,000  |  CAD $60K – $80K
-  new RegExp(`\\bCAD\\s*${numTok('\\$?')}${SEP}\\$?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*(K|k)?`, 'i'),
-  // 60,000 – 80,000 [per year/annually/CAD/yr]  — comma-formatted, no $ needed
-  new RegExp(`(?<![\\d,])([\\d]{2,3},[\\d]{3})\\s*(K|k)?${SEP}([\\d]{2,3},[\\d]{3})\\s*(K|k)?(?=\\s*(?:\\/yr|\\/year|\\byr\\b|per\\s+year|annually|per\\s+annum|\\bCAD\\b|\\bUSD\\b|\\s*$))`, 'i'),
+  // 1. CA$70K/yr – CA$75K/yr  (LinkedIn chip)
+  new RegExp(`CA\\$\\s*${N}(?:/yr|/year|/hour|/hr)?${S}CA\\$?\\s*${N}(?:/yr|/year|/hour|/hr)?`, 'i'),
+  // 2. $60K – $80K | $60,000 – $80,000 | $60–65/hr
+  new RegExp(`\\$\\s*${N}${S}\\$?\\s*${N}`, 'i'),
+  // 3. between $60K and $80K | from $60,000 to $80,000
+  new RegExp(`(?:between|from)\\s+\\$?\\s*${N}\\s+(?:and|to)\\s+\\$?\\s*${N}`, 'i'),
+  // 4. CAD 60,000 – 80,000 | CAD $60K – $80K
+  new RegExp(`\\bCAD\\s*\\$?\\s*${N}${S}\\$?\\s*${N}`, 'i'),
+  // 5. USD 60,000 – 80,000 | US$60K – 80K
+  new RegExp(`(?:\\bUSD\\b|US\\$)\\s*${N}${S}(?:\\bUSD\\b|US\\$)?\\s*${N}`, 'i'),
+  // 6. £45K – £60K | £45,000 – £60,000  (GBP)
+  new RegExp(`£\\s*${N}${S}£?\\s*${N}`, 'i'),
+  // 7. €45K – €60K | €45,000 – €60,000  (EUR)
+  new RegExp(`€\\s*${N}${S}€?\\s*${N}`, 'i'),
+  // 8. GBP/EUR keyword: GBP 45,000 – 60,000
+  new RegExp(`(?:\\bGBP\\b|\\bEUR\\b)\\s*${N}${S}(?:\\bGBP\\b|\\bEUR\\b)?\\s*${N}`, 'i'),
+  // 9. Comma-formatted plain numbers: 45,000 – 60,000 [near year/currency context or end of line]
+  new RegExp(
+    `(?<![\\d,])(\\d{2,3},\\d{3})\\s*(K|k)?${S}(\\d{2,3},\\d{3})\\s*(K|k)?(?=\\s*(?:/yr|/year|\\byr\\b|per\\s+year|annually|per\\s+annum|\\bCAD\\b|\\bUSD\\b|\\bGBP\\b|\\bEUR\\b|\\s*$))`,
+    'i'
+  ),
+  // 10. Plain 5-6-digit numbers near salary context: salary: 45000 to 60000
+  new RegExp(
+    `(?:salary|compensation|pay|wage|remuneration|package)[^\\d]{0,20}(\\d{4,6})\\s*(K|k)?${S}(\\d{4,6})\\s*(K|k)?`,
+    'i'
+  ),
 ];
 
 const SINGLE_VALUE_PATTERNS: RegExp[] = [
-  // CA$80K/yr or $80,000/yr or CAD $80K
   /CA\$\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hr|\/hour)?/i,
   /(?:CAD\s*)?\$\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k|M|m)?(?:\s*(?:\/yr|\/year|per year|annually|\/hr|\/hour|per hour))?/i,
+  /£\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hr|\/hour)?/i,
+  /€\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hr|\/hour)?/i,
+  /(?:\bUSD\b|US\$)\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hr|\/hour)?/i,
 ];
+
+function detectCurrency(text: string): string {
+  if (/CA\$|CAD\b|\bC\$/.test(text)) return 'CAD';
+  if (/£|\bGBP\b/.test(text)) return 'GBP';
+  if (/€|\bEUR\b/.test(text)) return 'EUR';
+  if (/\bUSD\b|US\$/.test(text)) return 'USD';
+  return 'CAD';
+}
 
 function parseNumber(raw: string, kSuffix: boolean): number {
   const cleaned = raw.replace(/,/g, '');
@@ -71,75 +98,61 @@ export function parseSalary(text: string): SalaryInfo | null {
   if (!text || text.trim().length === 0) return null;
 
   const { hasCommission, note: commissionNote } = detectCommission(text);
+  const currency = detectCurrency(text);
 
-  // Detect if hourly — but /yr suffix overrides (CA$70K/yr is annual, not hourly)
+  // Hourly detection — /yr overrides it (CA$70K/yr is annual, not hourly)
   const hasYearSuffix = /\/yr\b|\/year\b|\bper\s+year\b|\bannually\b|\bper\s+annum\b/i.test(text);
   const isHourly = !hasYearSuffix && HOURLY_PATTERNS.some((p) => p.test(text));
 
-  // Try to extract a range first
+  // Try range patterns first
   for (const pattern of RANGE_PATTERNS) {
     const match = text.match(pattern);
     if (!match) continue;
 
-    // All patterns produce 4 capture groups: num1, K1, num2, K2
+    // All patterns: groups 1,2,3,4 = num1, K1, num2, K2
     const rawMin = match[1];
-    const k1 = match[2];
+    const k1    = match[2];
     const rawMax = match[3];
-    const k2 = match[4];
+    const k2    = match[4];
 
     if (!rawMin || !rawMax) continue;
 
     let min = parseNumber(rawMin, !!(k1 && /k/i.test(k1)));
     let max = parseNumber(rawMax, !!(k2 && /k/i.test(k2)));
 
-    // Heuristic: if min is full value (e.g. 60000) and max is suspiciously small (e.g. 80),
-    // it was probably written as $60,000–80 meaning $60K–$80K
+    // "$60,000–80" means "$60K–$80K"
     if (min > 1000 && max < 1000 && max > 0) max = max * 1000;
 
     if (isNaN(min) || isNaN(max) || min <= 0 || max <= 0) continue;
     const lo = Math.min(min, max);
     const hi = Math.max(min, max);
-    // Sanity: both values should be plausible salaries
     if (lo < 10 || hi > 10_000_000) continue;
-
-    if (isHourly) {
-      return {
-        min: hourlyToAnnual(lo),
-        max: hourlyToAnnual(hi),
-        currency: 'CAD',
-        period: 'annual',
-        isEstimated: true,
-        hasCommission,
-        commissionNote,
-        raw: text,
-      };
-    }
+    // Reject if range looks like years or other non-salary numbers
+    if (!isHourly && hi < 1000 && lo < 1000) continue;
 
     return {
-      min: lo,
-      max: hi,
-      currency: 'CAD',
+      min: isHourly ? hourlyToAnnual(lo) : lo,
+      max: isHourly ? hourlyToAnnual(hi) : hi,
+      currency,
       period: 'annual',
-      isEstimated: false,
+      isEstimated: isHourly,
       hasCommission,
       commissionNote,
       raw: text,
     };
   }
 
-  // Try single value
+  // Single value
   for (const pattern of SINGLE_VALUE_PATTERNS) {
     const match = text.match(pattern);
     if (match) {
       const value = parseNumber(match[1], !!(match[2] && /k/i.test(match[2])));
-      if (isNaN(value) || value <= 0) continue;
-
+      if (isNaN(value) || value <= 0 || value < 10) continue;
       const annualValue = isHourly ? hourlyToAnnual(value) : value;
-
       return {
         min: annualValue,
         max: annualValue,
-        currency: 'CAD',
+        currency,
         period: 'annual',
         isEstimated: isHourly,
         hasCommission,
@@ -149,12 +162,11 @@ export function parseSalary(text: string): SalaryInfo | null {
     }
   }
 
-  // Commission/bonus mentioned but no dollar figure found
   if (hasCommission) {
     return {
       min: null,
       max: null,
-      currency: 'CAD',
+      currency,
       period: 'annual',
       isEstimated: false,
       hasCommission: true,
@@ -169,16 +181,15 @@ export function parseSalary(text: string): SalaryInfo | null {
 export function formatSalaryDisplay(info: SalaryInfo | null): string {
   if (!info) return 'Not listed';
 
+  const sym = info.currency === 'GBP' ? '£' : info.currency === 'EUR' ? '€' : '$';
   const fmt = (n: number | null) =>
-    n != null ? `$${(n / 1000).toFixed(0)}K` : '';
+    n != null ? `${sym}${(n / 1000).toFixed(0)}K` : '';
 
   let base = '';
   if (info.min != null && info.max != null) {
-    if (info.min === info.max) {
-      base = fmt(info.min);
-    } else {
-      base = `${fmt(info.min)} \u2013 ${fmt(info.max)}`;
-    }
+    base = info.min === info.max
+      ? fmt(info.min)
+      : `${fmt(info.min)}\u2013${fmt(info.max)}`;
   }
 
   const suffix = info.isEstimated ? ' ~est.' : '';

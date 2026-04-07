@@ -57,6 +57,8 @@ export async function POST(req: NextRequest) {
   const deduped = deduplicateJobs(allJobs);
 
   deduped.sort((a, b) => {
+    // Fresh jobs above reposted
+    if (a.isReposted !== b.isReposted) return a.isReposted ? 1 : -1;
     const ta = a.datePostedRaw instanceof Date ? a.datePostedRaw.getTime() : 0;
     const tb = b.datePostedRaw instanceof Date ? b.datePostedRaw.getTime() : 0;
     return tb - ta;
