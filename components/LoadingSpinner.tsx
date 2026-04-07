@@ -78,12 +78,8 @@ function CKLogo({ size = 88 }: { size?: number }) {
 export function LoadingSpinner({ message = 'Scraping jobs…' }: { message?: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-24 gap-6">
-      {/* Coin-flip logo — perspective set on wrapper so rotateY creates depth */}
-      <div style={{ perspective: '600px' }}>
-        <div className="animate-coin-flip">
-          <CKLogo size={90} />
-        </div>
-      </div>
+      {/* CK Logo */}
+      <CKLogo size={90} />
 
       <div className="text-center">
         <p className="text-gray-700 dark:text-gray-200 font-semibold text-base">{message}</p>
