@@ -294,7 +294,7 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
               <tr>
                 <td colSpan={COLUMNS.length} className="px-4 py-12 text-center text-gray-400 dark:text-gray-500 text-sm">
                   {jobs.length > 0
-                    ? 'All jobs filtered out. Try loosening your filters.'
+                    ? 'No jobs match your filters. Try broadening your keyword search or loosening other filters.'
                     : 'No jobs found. Try adjusting your search criteria.'}
                 </td>
               </tr>
