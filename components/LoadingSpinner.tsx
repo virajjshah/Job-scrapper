@@ -13,7 +13,7 @@ export function LoadingSpinner({ message = 'Scraping jobs…' }: { message?: str
           Searching LinkedIn, Indeed &amp; Glassdoor — this may take 1–2 minutes
         </p>
         <p className="text-gray-300 dark:text-gray-600 text-xs mt-3 italic">
-          Results are scraped using AI — salary, experience, and repost data may contain parsing errors.
+          Results are scraped using AI. Salary, experience, and repost data may not always be accurate.
         </p>
       </div>
       <div className="flex gap-3 mt-2">
