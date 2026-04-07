@@ -12,6 +12,9 @@ export function LoadingSpinner({ message = 'Scraping jobs…' }: { message?: str
         <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">
           Searching LinkedIn, Indeed &amp; Glassdoor — this may take 1–2 minutes
         </p>
+        <p className="text-gray-300 dark:text-gray-600 text-xs mt-3 italic">
+          Results are scraped using AI — salary, experience, and repost data may contain parsing errors.
+        </p>
       </div>
       <div className="flex gap-3 mt-2">
         {['LinkedIn', 'Indeed', 'Glassdoor'].map((src, i) => (

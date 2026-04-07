@@ -54,10 +54,14 @@ export function extractJsonLdData(html: string): {
         const min = v.minValue ?? null;
         const max = v.maxValue ?? v.value ?? null;
         const unit = (v.unitText ?? bs.unitText ?? '').toLowerCase();
+        // LinkedIn sometimes embeds monthly salary — convert to annual so parseSalary
+        // doesn't display "$2K" for a $2,000/month role.
+        const multiplier = unit === 'month' ? 12 : unit === 'week' ? 52 : unit === 'hour' ? 2080 : 1;
+        const annualUnit = multiplier !== 1 ? 'year' : unit;
         if (min != null && max != null) {
-          result.salary = `$${min} - $${max}${unit ? ` per ${unit}` : ''}`;
+          result.salary = `$${Math.round(Number(min) * multiplier)} - $${Math.round(Number(max) * multiplier)} per ${annualUnit || 'year'}`;
         } else if (max != null) {
-          result.salary = `$${max}${unit ? ` per ${unit}` : ''}`;
+          result.salary = `$${Math.round(Number(max) * multiplier)} per ${annualUnit || 'year'}`;
         }
       }
 

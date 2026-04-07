@@ -62,6 +62,8 @@ const SINGLE_VALUE_PATTERNS: RegExp[] = [
   /£\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hr|\/hour)?/i,
   /€\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hr|\/hour)?/i,
   /(?:\bUSD\b|US\$)\s*([\d,]+(?:\.\d{1,2})?)\s*(K|k)?(?:\/yr|\/year|\/hr|\/hour)?/i,
+  // "52,500 CAD" / "22,500 USD" — number BEFORE currency code (no $ prefix)
+  /(?<!\d)([\d,]{5,}(?:\.\d{1,2})?)\s*(K|k)?\s*(?:CAD|USD|GBP|EUR)\b/i,
 ];
 
 function detectCurrency(text: string): string {
@@ -78,12 +80,38 @@ function parseNumber(raw: string, kSuffix: boolean): number {
   return kSuffix ? value * 1000 : value;
 }
 
+/** Try to pull a dollar amount from a commission/bonus sentence and format it. */
+function extractVariableAmount(text: string, keyword: 'commission' | 'bonus'): string | null {
+  const patterns = [
+    // "commission pay is 22,500 CAD" / "commission target of $25,000"
+    new RegExp(`${keyword}\\s+(?:pay|target|of|:)?\\s*(?:is\\s+)?(?:CA\\$|\\$|£|€)?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*(K|k)?\\s*(?:CAD|USD|GBP|EUR)?`, 'i'),
+    // "$25,000 commission" / "22,500 CAD commission"
+    new RegExp(`(?:CA\\$|\\$|£|€)?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s*(K|k)?\\s*(?:CAD|USD)?\\s+(?:uncapped\\s+)?${keyword}`, 'i'),
+  ];
+  for (const p of patterns) {
+    const m = text.match(p);
+    if (m) {
+      const val = parseNumber(m[1], !!(m[2] && /k/i.test(m[2])));
+      if (!isNaN(val) && val >= 1000 && val < 1_000_000) {
+        const formatted = val >= 1000 ? `$${(val / 1000).toFixed(val % 1000 !== 0 ? 1 : 0)}K` : `$${val}`;
+        return `${formatted} ${keyword}`;
+      }
+    }
+  }
+  return null;
+}
+
 function detectCommission(text: string): { hasCommission: boolean; note: string | null } {
   for (const pattern of COMMISSION_PATTERNS) {
     if (pattern.test(text)) {
-      if (/\bOTE\b/.test(text) || /on[- ]target[- ]earnings?/i.test(text)) return { hasCommission: true, note: 'Base + Commission' };
-      if (/commission/i.test(text)) return { hasCommission: true, note: 'Base + Commission' };
-      if (/bonus/i.test(text)) return { hasCommission: true, note: 'Base + Bonus' };
+      if (/commission/i.test(text)) {
+        const amt = extractVariableAmount(text, 'commission');
+        return { hasCommission: true, note: amt ?? 'Base + Commission' };
+      }
+      if (/bonus/i.test(text)) {
+        const amt = extractVariableAmount(text, 'bonus');
+        return { hasCommission: true, note: amt ?? 'Base + Bonus' };
+      }
       return { hasCommission: true, note: 'Variable Compensation' };
     }
   }
