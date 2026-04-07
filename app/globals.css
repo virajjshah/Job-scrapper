@@ -25,3 +25,30 @@ html {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* ── Coin-flip animation for CK logo in loading screen ── */
+@keyframes coinFlip {
+  /* Fast phase: 2 s of rapid spinning (0 → 720°) */
+  0% {
+    transform: rotateY(0deg);
+    animation-timing-function: linear;
+  }
+  57% {
+    /* 2 s / 3.5 s ≈ 57 % — two full face-on rotations */
+    transform: rotateY(720deg);
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1); /* ease-out-cubic */
+  }
+  /* Slow phase: 1.5 s deceleration — coin swings to face viewer */
+  85% {
+    transform: rotateY(1008deg) scale(1.08); /* slightly larger as it "approaches" */
+    animation-timing-function: ease-out;
+  }
+  100% {
+    transform: rotateY(1080deg) scale(1); /* three full rotations, face-on */
+  }
+}
+
+.animate-coin-flip {
+  animation: coinFlip 3.5s infinite;
+  transform-style: preserve-3d;
+}

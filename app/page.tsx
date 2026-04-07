@@ -170,6 +170,19 @@ export default function HomePage() {
         </main>
       </div>
 
+      {/* Footer */}
+      <footer className="text-center py-3 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0">
+        Made with ❤️ by{' '}
+        <a
+          href="https://www.linkedin.com/in/viraj-irl/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+        >
+          Viraj Shah
+        </a>
+      </footer>
+
       <ThemeToggle />
 
       {/* Toast notification */}
