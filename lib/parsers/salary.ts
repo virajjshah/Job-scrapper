@@ -81,7 +81,7 @@ function parseNumber(raw: string, kSuffix: boolean): number {
 function detectCommission(text: string): { hasCommission: boolean; note: string | null } {
   for (const pattern of COMMISSION_PATTERNS) {
     if (pattern.test(text)) {
-      if (/\bOTE\b/.test(text)) return { hasCommission: true, note: 'OTE' };
+      if (/\bOTE\b/.test(text) || /on[- ]target[- ]earnings?/i.test(text)) return { hasCommission: true, note: 'Base + Commission' };
       if (/commission/i.test(text)) return { hasCommission: true, note: 'Base + Commission' };
       if (/bonus/i.test(text)) return { hasCommission: true, note: 'Base + Bonus' };
       return { hasCommission: true, note: 'Variable Compensation' };

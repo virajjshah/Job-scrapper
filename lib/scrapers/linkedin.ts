@@ -134,18 +134,23 @@ export async function scrapeLinkedIn(filters: SearchFilters): Promise<Job[]> {
         .filter((t) => t.length > 0 && t.length < 60);
 
       // Date & repost detection.
-      // LinkedIn sometimes puts "Reposted" as a sibling span next to <time>,
-      // not inside the <time> element itself. Check the parent container text
-      // and any class names containing "repost" to catch both patterns.
+      // The screenshot shows LinkedIn renders: "Toronto, ON · Reposted 12 hours ago · Over 100 applicants"
+      // "Reposted" is a sibling <span> to <time>, not inside it. Three detection layers:
+      // 1. listdate container text — catches "Reposted X ago" when it's in the same parent
+      // 2. Full li.textContent — search cards have no description, so scanning all text is safe
+      //    and catches bold-green, grey-font, and badge variants
+      // 3. Class name — catches explicit [class*="repost"] badge elements
       const timeEl = li.querySelector('time');
-      const dateText = timeEl?.textContent?.trim() ?? '';
-      const dateParentText = timeEl?.parentNode?.textContent?.trim() ?? '';
-      const timeClass = (timeEl?.getAttribute('class') ?? '').toLowerCase();
+      const listdateEl = (
+        li.querySelector('[class*="listdate"]') ??
+        li.querySelector('[class*="list-date"]') ??
+        timeEl?.parentNode as typeof timeEl ?? timeEl
+      );
+      const dateText = listdateEl?.textContent?.trim() || timeEl?.textContent?.trim() ?? '';
 
       const isReposted =
         /\breposted\b/i.test(dateText) ||
-        /\breposted\b/i.test(dateParentText) ||
-        timeClass.includes('repost') ||
+        /\breposted\b/i.test(li.textContent ?? '') ||
         li.querySelector('[class*="repost"]') !== null;
 
       if (title) {
@@ -268,6 +273,14 @@ async function scrapeLinkedInDetail(card: {
   const fullDescription = [chipParts.join(' · '), desc].filter(Boolean).join('\n\n');
   const empTypeText = empType || card.benefits.join(' ');
 
+  // Detail-page repost check — catches cases where the search card HTML
+  // didn't include the "Reposted" label (guest API sometimes omits it).
+  // Only scan the first 3000 chars (page header) to avoid false positives
+  // from job descriptions that mention the word "reposted".
+  const detailIsReposted =
+    /\breposted\b/i.test(html.substring(0, 3000)) ||
+    root.querySelector('[class*="repost"]') !== null;
+
   return buildJobFromRaw({
     title: card.title,
     company: card.company,
@@ -278,7 +291,7 @@ async function scrapeLinkedInDetail(card: {
     source: 'LinkedIn',
     employmentTypeText: empTypeText,
     applyUrl,
-    isReposted: card.isReposted,
+    isReposted: card.isReposted || detailIsReposted,
     // Combine all salary signals: JSON-LD > detail page chip > search card chip
     salaryHint: [ldData.salary, detailSalary, card.salary].filter(Boolean).join(' ') || undefined,
     industryHint: ldData.industry ?? null,
