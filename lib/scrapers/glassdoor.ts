@@ -123,13 +123,19 @@ export async function scrapeGlassdoor(filters: SearchFilters): Promise<Job[]> {
         card.querySelector('[class*="salary"]')
       )?.textContent?.trim() ?? '';
 
-      const datePosted = (
+      const dateEl = (
         card.querySelector('[data-test="listing-age"]') ??
         card.querySelector('[class*="listing-age"]') ??
         card.querySelector('time')
-      )?.textContent?.trim() ?? '';
+      );
+      const datePosted = dateEl?.textContent?.trim() ?? '';
 
-      const isReposted = /\breposted\b/i.test(card.textContent ?? '');
+      // Scope repost detection to the date area only (not full card text —
+      // job descriptions often mention "reposted" and would cause false positives)
+      const dateAreaText = `${datePosted} ${dateEl?.parentNode?.textContent?.trim() ?? ''}`;
+      const isReposted =
+        /\breposted\b/i.test(dateAreaText) ||
+        card.querySelector('[class*="repost"]') !== null;
 
       allCards.push({ title, href, company, location, salary, datePosted, isReposted });
       added++;

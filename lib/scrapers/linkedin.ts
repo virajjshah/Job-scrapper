@@ -133,10 +133,20 @@ export async function scrapeLinkedIn(filters: SearchFilters): Promise<Job[]> {
       ).map((el) => el.textContent?.replace(/[✓✔\u2713\u2714]/g, '').trim() ?? '')
         .filter((t) => t.length > 0 && t.length < 60);
 
-      // Date & repost
+      // Date & repost detection.
+      // LinkedIn sometimes puts "Reposted" as a sibling span next to <time>,
+      // not inside the <time> element itself. Check the parent container text
+      // and any class names containing "repost" to catch both patterns.
       const timeEl = li.querySelector('time');
       const dateText = timeEl?.textContent?.trim() ?? '';
-      const isReposted = /\breposted\b/i.test(dateText);
+      const dateParentText = timeEl?.parentNode?.textContent?.trim() ?? '';
+      const timeClass = (timeEl?.getAttribute('class') ?? '').toLowerCase();
+
+      const isReposted =
+        /\breposted\b/i.test(dateText) ||
+        /\breposted\b/i.test(dateParentText) ||
+        timeClass.includes('repost') ||
+        li.querySelector('[class*="repost"]') !== null;
 
       if (title) {
         allCards.push({ href, jobId, title, company, location, salary, benefits, isReposted, dateText });

@@ -134,6 +134,18 @@ export async function scrapeIndeed(filters: SearchFilters): Promise<Job[]> {
         }
       }
 
+      // Repost detection — check dedicated repost elements and the date area only
+      // (avoid scanning description which may use the word "reposted" in context)
+      const repostEl = root.querySelector(
+        '[data-testid*="repost"], [class*="repost"], [class*="refreshed"]'
+      );
+      const dateAreaEl = root.querySelector(
+        '[data-testid="jobsearch-JobInfoHeader-datePosted"], [class*="date-posted"], [class*="datePosted"]'
+      );
+      const isReposted =
+        repostEl !== null ||
+        /\breposted\b/i.test(dateAreaEl?.textContent ?? '');
+
       jobs.push(buildJobFromRaw({
         title: card.title,
         company: card.company,
@@ -145,6 +157,7 @@ export async function scrapeIndeed(filters: SearchFilters): Promise<Job[]> {
         employmentTypeText: employmentType,
         salaryHint: ldData.salary ?? salaryChip ?? undefined,
         industryHint: ldData.industry ?? null,
+        isReposted,
       }));
     } catch {
       // Fallback: use RSS snippet data
