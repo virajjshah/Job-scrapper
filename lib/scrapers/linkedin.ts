@@ -141,12 +141,11 @@ export async function scrapeLinkedIn(filters: SearchFilters): Promise<Job[]> {
       //    and catches bold-green, grey-font, and badge variants
       // 3. Class name — catches explicit [class*="repost"] badge elements
       const timeEl = li.querySelector('time');
-      const listdateEl = (
+      const listdateEl =
         li.querySelector('[class*="listdate"]') ??
         li.querySelector('[class*="list-date"]') ??
-        timeEl?.parentNode as typeof timeEl ?? timeEl
-      );
-      const dateText = listdateEl?.textContent?.trim() || timeEl?.textContent?.trim() ?? '';
+        timeEl;
+      const dateText = listdateEl?.textContent?.trim() || (timeEl?.textContent?.trim() ?? '');
 
       const isReposted =
         /\breposted\b/i.test(dateText) ||
