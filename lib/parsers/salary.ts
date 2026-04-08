@@ -207,24 +207,31 @@ export function parseSalary(text: string): SalaryInfo | null {
 }
 
 export function formatSalaryDisplay(info: SalaryInfo | null): string {
-  if (!info) return 'Not listed';
+  if (!info) return 'Not specified';
 
   const sym = info.currency === 'GBP' ? '£' : info.currency === 'EUR' ? '€' : '$';
-  const fmt = (n: number | null) =>
-    n != null && n > 0 ? `${sym}${(n / 1000).toFixed(0)}K` : '';
+  // Only format values that are real, non-zero numbers
+  const fmt = (n: number) => `${sym}${(n / 1000).toFixed(0)}K`;
+
+  const hasMin = info.min != null && info.min > 0;
+  const hasMax = info.max != null && info.max > 0;
 
   let base = '';
-  if (info.min != null && info.max != null) {
+  if (hasMin && hasMax) {
     base = info.min === info.max
-      ? fmt(info.min)
-      : `${fmt(info.min)}\u2013${fmt(info.max)}`;
+      ? fmt(info.min!)
+      : `${fmt(info.min!)}\u2013${fmt(info.max!)}`;
+  } else if (hasMax) {
+    base = fmt(info.max!);
+  } else if (hasMin) {
+    base = fmt(info.min!);
   }
 
   const suffix = info.isEstimated ? ' ~est.' : '';
   const commission = info.commissionNote ? ` (${info.commissionNote})` : '';
 
   if (!base && info.hasCommission) return info.commissionNote ?? 'Commission-based';
-  if (!base) return 'Not listed';
+  if (!base) return 'Not specified';
 
   return `${base}${suffix}${commission}`;
 }
