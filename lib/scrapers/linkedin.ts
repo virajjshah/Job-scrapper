@@ -306,8 +306,6 @@ async function scrapeLinkedInDetail(card: {
   ].flatMap((sel) => root.querySelectorAll(sel));
 
   const detailIsReposted =
-    // Layer 0: JSON-LD dateModified > datePosted signal (most reliable)
-    ldData.isReposted === true ||
     // Layer 1: Tight timestamp pattern (full HTML scan — safe from false positives)
     REPOST_TS_RE.test(html) ||
     // Layer 2: Broad word search in page header (first 5000 chars)
