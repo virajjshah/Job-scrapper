@@ -28,6 +28,7 @@ export function extractJsonLdData(html: string): {
   salary?: string;
   employmentType?: string;
   industry?: string;
+  isReposted?: boolean;
 } {
   const scriptRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
   let m: RegExpExecArray | null;
@@ -37,7 +38,14 @@ export function extractJsonLdData(html: string): {
       const entry = Array.isArray(schema) ? schema.find((s) => s['@type'] === 'JobPosting') : schema;
       if (!entry || entry['@type'] !== 'JobPosting') continue;
 
-      const result: { salary?: string; employmentType?: string; industry?: string } = {};
+      const result: { salary?: string; employmentType?: string; industry?: string; isReposted?: boolean } = {};
+
+      // Detect repost from dateModified > datePosted
+      const datePosted = entry.datePosted ? new Date(entry.datePosted).getTime() : null;
+      const dateModified = entry.dateModified ? new Date(entry.dateModified).getTime() : null;
+      if (datePosted && dateModified && dateModified > datePosted) {
+        result.isReposted = true;
+      }
 
       if (entry.employmentType) {
         result.employmentType = Array.isArray(entry.employmentType)
