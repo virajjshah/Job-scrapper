@@ -78,7 +78,7 @@ const COLUMNS: ColDef[] = [
     label: 'Yrs Exp',
     field: 'yearsExperience',
     render: (job) => (
-      <span className={clsx('text-sm', !job.yearsExperience && job.yearsExperience !== 0 ? 'text-gray-400 italic' : 'text-gray-700')}>
+      <span className={clsx('text-sm', !job.yearsExperience && job.yearsExperience !== 0 ? 'text-gray-400 dark:text-gray-600 italic' : 'text-gray-900 dark:text-gray-200')}>
         {job.yearsExperienceDisplay}
       </span>
     ),
