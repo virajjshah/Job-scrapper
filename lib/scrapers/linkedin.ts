@@ -133,38 +133,23 @@ export async function scrapeLinkedIn(filters: SearchFilters): Promise<Job[]> {
       ).map((el) => el.textContent?.replace(/[✓✔\u2713\u2714]/g, '').trim() ?? '')
         .filter((t) => t.length > 0 && t.length < 60);
 
-      // Date & repost detection.
-      // LinkedIn renders repost info in several ways:
-      // - <time>Reposted 3 hours ago</time> (direct text)
-      // - Sibling <span> next to <time> with "Reposted"
-      // - Class names like job-search-card__listdate--reposted
-      // - Badge/emphasis element with repost styling
-      // Aggressive multi-layer detection:
+      // Date & repost detection — ONLY check date-related elements,
+      // never scan full card text (cards contain job snippets that
+      // could contain the word "reposted" in description prose).
       const timeEl = li.querySelector('time');
       const dateText = timeEl?.textContent?.trim() ?? '';
       const dateParentText = (timeEl?.parentNode as any)?.textContent?.trim() ?? '';
       const timeClass = (timeEl?.getAttribute('class') ?? '').toLowerCase();
-      const liClass = (li.getAttribute('class') ?? '').toLowerCase();
-      const fullText = li.textContent ?? '';
 
       const isReposted =
-        // Layer 1: Direct text match in time element
+        // 1. <time> element says "Reposted 3 hours ago"
         /\breposted\b/i.test(dateText) ||
-        // Layer 2: Parent container (catches sibling spans)
+        // 2. Parent of <time> (catches sibling spans in same container)
         /\breposted\b/i.test(dateParentText) ||
-        // Layer 3: Repost in class name
+        // 3. Class name on <time> contains "repost"
         timeClass.includes('repost') ||
-        liClass.includes('repost') ||
-        // Layer 4: Full li text scan (catches any occurrence)
-        /reposted\s+\d+\s+(?:minute|hour|day|week|month)/i.test(fullText) ||
-        /\breposted\b/i.test(fullText) ||
-        // Layer 5: Badge element with repost styling
-        li.querySelector('[class*="repost"]') !== null ||
-        // Layer 6: Data attributes
-        li.getAttribute('data-reposted') === 'true' ||
-        /repost/i.test(li.getAttribute('data-job-state') ?? '') ||
-        // Layer 7: Look for repost span or div with specific patterns
-        li.querySelector('[class*="posted"]')?.textContent?.match(/reposted/i) !== null;
+        // 4. Explicit repost badge element
+        li.querySelector('[class*="repost"]') !== null;
 
       if (title) {
         allCards.push({ href, jobId, title, company, location, salary, benefits, isReposted, dateText });
@@ -286,41 +271,28 @@ async function scrapeLinkedInDetail(card: {
   const fullDescription = [chipParts.join(' · '), desc].filter(Boolean).join('\n\n');
   const empTypeText = empType || card.benefits.join(' ');
 
-  // Detail-page repost check — comprehensive multi-layer approach:
-  // Layer 1: Tight timestamp pattern (safe — won't match job descriptions)
-  // Layer 2: Broad word boundary search in HTML header
-  // Layer 3: Metadata DOM elements (topcard, posted-time, etc.)
-  // Layer 4: Repost class badges or elements
-  // Layer 5: Data attributes and JSON-LD if present
+  // Detail-page repost check — ONLY targeted elements, never full
+  // document text (descriptions often contain the word "reposted").
   const REPOST_TS_RE = /reposted\s+\d+\s+(?:minute|hour|day|week|month)s?\s+ago/i;
-  const REPOST_SIMPLE_RE = /\breposted\b/i;
 
+  // Only check date/time metadata elements — not description text
   const metaEls = [
     '[class*="posted-time"]',
     '[class*="listed-time"]',
     '[class*="topcard__flavor"]',
     '[class*="posted-date"]',
     '[class*="job-search-card__listdate"]',
-    '[class*="posted"]',  // broader catch
     'time',
   ].flatMap((sel) => root.querySelectorAll(sel));
 
   const detailIsReposted =
-    // Layer 1: Tight timestamp pattern (full HTML scan — safe from false positives)
+    // 1. Tight timestamp pattern in full HTML (safe — descriptions
+    //    never say "reposted 3 hours ago" with that exact format)
     REPOST_TS_RE.test(html) ||
-    // Layer 2: Broad word search in page header (first 5000 chars)
-    REPOST_SIMPLE_RE.test(html.substring(0, 5000)) ||
-    // Layer 3: Check all metadata elements
-    metaEls.some((el) => REPOST_SIMPLE_RE.test(el.textContent ?? '')) ||
-    // Layer 4: Repost badge/class
-    root.querySelector('[class*="repost"]') !== null ||
-    // Layer 5: Data attributes
-    root.querySelector('[data-reposted="true"]') !== null ||
-    // Layer 6: Look for repost in topcard area specifically
-    REPOST_SIMPLE_RE.test(root.querySelector('[class*="topcard"]')?.textContent ?? '') ||
-    // Layer 7: Fallback—check for repost in the entire document text
-    // (this is aggressive but necessary as a last resort)
-    REPOST_SIMPLE_RE.test(root.text ?? '');
+    // 2. Date/time metadata elements contain "reposted"
+    metaEls.some((el) => /\breposted\b/i.test(el.textContent ?? '')) ||
+    // 3. Explicit repost badge class
+    root.querySelector('[class*="repost"]') !== null;
 
   return buildJobFromRaw({
     title: card.title,
