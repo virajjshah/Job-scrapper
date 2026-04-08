@@ -102,7 +102,7 @@ export const DEFAULT_FILTERS: SearchFilters = {
   location: 'Toronto, ON',
   workType: 'Any',
   industries: [],
-  datePostedDays: 0,
+  datePostedDays: 1,
   employmentTypes: [],
   salaryMin: 0,
   salaryMax: 300000,
