@@ -211,7 +211,7 @@ export function formatSalaryDisplay(info: SalaryInfo | null): string {
 
   const sym = info.currency === 'GBP' ? '£' : info.currency === 'EUR' ? '€' : '$';
   const fmt = (n: number | null) =>
-    n != null ? `${sym}${(n / 1000).toFixed(0)}K` : '';
+    n != null && n > 0 ? `${sym}${(n / 1000).toFixed(0)}K` : '';
 
   let base = '';
   if (info.min != null && info.max != null) {

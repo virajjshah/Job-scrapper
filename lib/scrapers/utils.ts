@@ -58,10 +58,13 @@ export function extractJsonLdData(html: string): {
         // doesn't display "$2K" for a $2,000/month role.
         const multiplier = unit === 'month' ? 12 : unit === 'week' ? 52 : unit === 'hour' ? 2080 : 1;
         const annualUnit = multiplier !== 1 ? 'year' : unit;
-        if (min != null && max != null) {
-          result.salary = `$${Math.round(Number(min) * multiplier)} - $${Math.round(Number(max) * multiplier)} per ${annualUnit || 'year'}`;
-        } else if (max != null) {
-          result.salary = `$${Math.round(Number(max) * multiplier)} per ${annualUnit || 'year'}`;
+        const numMin = min != null ? Math.round(Number(min) * multiplier) : null;
+        const numMax = max != null ? Math.round(Number(max) * multiplier) : null;
+        // Guard against LinkedIn setting minValue: 0 — treat 0 as "no value"
+        if (numMin != null && numMin > 0 && numMax != null && numMax > 0) {
+          result.salary = `$${numMin} - $${numMax} per ${annualUnit || 'year'}`;
+        } else if (numMax != null && numMax > 0) {
+          result.salary = `$${numMax} per ${annualUnit || 'year'}`;
         }
       }
 

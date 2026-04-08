@@ -70,9 +70,6 @@ const COLUMNS: ColDef[] = [
         {job.salary?.isEstimated && (
           <span className="text-xs text-gray-400">~Annual est.</span>
         )}
-        {job.hasCommission && job.salary?.commissionNote && (
-          <Badge label={job.salary.commissionNote} variant="amber" />
-        )}
       </div>
     ),
     className: 'min-w-[160px]',
