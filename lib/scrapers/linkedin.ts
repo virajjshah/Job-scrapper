@@ -272,12 +272,26 @@ async function scrapeLinkedInDetail(card: {
   const fullDescription = [chipParts.join(' · '), desc].filter(Boolean).join('\n\n');
   const empTypeText = empType || card.benefits.join(' ');
 
-  // Detail-page repost check — catches cases where the search card HTML
-  // didn't include the "Reposted" label (guest API sometimes omits it).
-  // Only scan the first 3000 chars (page header) to avoid false positives
-  // from job descriptions that mention the word "reposted".
+  // Detail-page repost check — multi-layer approach:
+  // 1. Tight timestamp pattern scanned against the FULL HTML — safe because
+  //    "reposted N hours/days ago" never appears in job description prose
+  // 2. Broad "reposted" scan limited to the first 5 000 chars (page header)
+  // 3. Specific metadata DOM selectors known to contain posting-date text
+  // 4. Class-name selector for explicit repost badge elements
+  const REPOST_TS_RE = /reposted\s+\d+\s+(?:minute|hour|day|week|month)s?\s+ago/i;
+  const metaEls = [
+    '[class*="posted-time"]',
+    '[class*="listed-time"]',
+    '[class*="topcard__flavor"]',
+    '[class*="posted-date"]',
+    '[class*="job-search-card__listdate"]',
+    'time',
+  ].flatMap((sel) => root.querySelectorAll(sel));
+
   const detailIsReposted =
-    /\breposted\b/i.test(html.substring(0, 3000)) ||
+    REPOST_TS_RE.test(html) ||
+    /\breposted\b/i.test(html.substring(0, 5000)) ||
+    metaEls.some((el) => /\breposted\b/i.test(el.textContent ?? '')) ||
     root.querySelector('[class*="repost"]') !== null;
 
   return buildJobFromRaw({

@@ -12,8 +12,6 @@ interface BadgeProps {
 
 const SOURCE_STYLES: Record<string, string> = {
   LinkedIn: 'bg-[#0077B5] text-white',
-  Indeed: 'bg-[#2164F3] text-white',
-  Glassdoor: 'bg-[#0CAA41] text-white',
   Custom: 'bg-gray-600 text-white',
 };
 

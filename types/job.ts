@@ -1,4 +1,4 @@
-export type JobSource = 'LinkedIn' | 'Indeed' | 'Glassdoor' | 'Custom';
+export type JobSource = 'LinkedIn' | 'Custom';
 export type WorkType = 'Remote' | 'Hybrid' | 'On-site' | 'Any';
 export type EmploymentType = 'Full-time' | 'Part-time' | 'Contract';
 
