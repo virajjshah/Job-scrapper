@@ -23,7 +23,7 @@ export function ThemeToggle() {
       onClick={toggle}
       aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
       className={
-        'fixed bottom-20 right-5 z-40 w-11 h-11 rounded-full shadow-lg border ' +
+        'fixed bottom-20 right-4 z-30 w-10 h-10 rounded-full shadow-lg border ' +
         'flex items-center justify-center transition-all hover:scale-110 active:scale-95 ' +
         'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600'
       }

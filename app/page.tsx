@@ -7,7 +7,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import type { ScrapeResult, SearchFilters } from '@/types/job';
 import { DEFAULT_FILTERS } from '@/types/job';
-import { Briefcase, AlertCircle, X, CheckCircle } from 'lucide-react';
+import { Briefcase, AlertCircle, X, CheckCircle, SlidersHorizontal } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 type ToastState = { type: 'success' | 'error'; message: string } | null;
@@ -18,6 +18,7 @@ export default function HomePage() {
   const [toast, setToast] = useState<ToastState>(null);
   const [lastKeywords, setLastKeywords] = useState('');
   const [lastFilters, setLastFilters] = useState<SearchFilters>(DEFAULT_FILTERS);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -26,11 +27,22 @@ export default function HomePage() {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  // Lock body scroll when mobile drawer is open
+  useEffect(() => {
+    if (mobileFiltersOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileFiltersOpen]);
+
   const handleSearch = useCallback(async (filters: SearchFilters) => {
     setIsLoading(true);
     setResult(null);
     setLastKeywords(filters.keywords);
     setLastFilters(filters);
+    setMobileFiltersOpen(false);
 
     try {
       const res = await fetch('/api/scrape', {
@@ -94,7 +106,6 @@ export default function HomePage() {
     const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
     const csv = [headers, ...rows].map((r) => r.map(esc).join(',')).join('\r\n');
 
-    // BOM so Excel opens UTF-8 correctly
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -114,14 +125,12 @@ export default function HomePage() {
       <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm z-20 sticky top-0">
         <div className="max-w-screen-2xl mx-auto px-4 py-3 flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
               <Briefcase size={18} className="text-white" />
             </div>
-            <div>
-              <h1 className="text-base font-bold text-gray-900 dark:text-gray-100 leading-none">Job Scraper</h1>
-            </div>
+            <h1 className="text-base font-bold text-gray-900 dark:text-gray-100 leading-none">Job Scraper</h1>
           </div>
-          <div className="flex gap-2 ml-4">
+          <div className="flex gap-2 ml-1">
             <span
               className="text-xs px-2 py-0.5 rounded-full text-white font-medium"
               style={{ backgroundColor: '#0077B5' }}
@@ -129,27 +138,62 @@ export default function HomePage() {
               LinkedIn
             </span>
           </div>
-          <div className="ml-auto flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-            <span className="hidden sm:inline">No login required · Public data only</span>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="hidden sm:inline text-xs text-gray-500 dark:text-gray-400">
+              No login required · Public data only
+            </span>
+            {/* Mobile: Filters button */}
+            <button
+              onClick={() => setMobileFiltersOpen(true)}
+              className="md:hidden flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg active:bg-blue-700"
+            >
+              <SlidersHorizontal size={15} />
+              Filters
+            </button>
           </div>
         </div>
       </header>
 
+      {/* Mobile filter bottom-sheet drawer */}
+      {mobileFiltersOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setMobileFiltersOpen(false)}
+          />
+          {/* Drawer */}
+          <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-2xl max-h-[92dvh] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Search &amp; Filters</h2>
+              <button
+                onClick={() => setMobileFiltersOpen(false)}
+                className="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center active:bg-gray-200 dark:active:bg-gray-700"
+                aria-label="Close filters"
+              >
+                <X size={16} className="text-gray-600 dark:text-gray-400" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <SearchPanel onSearch={handleSearch} isLoading={isLoading} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main layout */}
       <div className="flex flex-1 max-w-screen-2xl mx-auto w-full">
-        {/* Sidebar */}
-        <aside className="w-80 min-w-[280px] max-w-xs flex-shrink-0 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+        {/* Sidebar — desktop only */}
+        <aside className="hidden md:flex w-80 min-w-[280px] max-w-xs flex-shrink-0 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex-col">
           <div className="flex-1 p-4 overflow-y-auto">
             <SearchPanel onSearch={handleSearch} isLoading={isLoading} />
           </div>
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 flex flex-col overflow-hidden p-4 gap-4 min-w-0 bg-gray-50 dark:bg-gray-950">
+        <main className="flex-1 flex flex-col overflow-hidden p-3 md:p-4 gap-3 md:gap-4 min-w-0 bg-gray-50 dark:bg-gray-950">
           {isLoading && <LoadingSpinner />}
-
           {!isLoading && !result && <EmptyState />}
-
           {!isLoading && result && (
             <ResultsTable
               jobs={result.jobs}
@@ -182,7 +226,7 @@ export default function HomePage() {
       {/* Toast notification */}
       {toast && (
         <div
-          className={`fixed bottom-5 right-5 z-50 flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border max-w-sm text-sm animate-in slide-in-from-bottom-2 ${
+          className={`fixed bottom-5 left-4 right-4 sm:left-auto sm:right-5 sm:max-w-sm z-50 flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm ${
             toast.type === 'success'
               ? 'bg-white dark:bg-gray-800 border-green-200 dark:border-green-800 text-gray-800 dark:text-gray-100'
               : 'bg-white dark:bg-gray-800 border-red-200 dark:border-red-800 text-gray-800 dark:text-gray-100'
@@ -196,7 +240,7 @@ export default function HomePage() {
           <div className="flex-1 min-w-0">
             <p>{toast.message}</p>
           </div>
-          <button onClick={() => setToast(null)} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+          <button onClick={() => setToast(null)} className="text-gray-400 hover:text-gray-600 flex-shrink-0 p-1">
             <X size={16} />
           </button>
         </div>

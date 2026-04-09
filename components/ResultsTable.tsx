@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { ExternalLink, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import { ExternalLink, ChevronUp, ChevronDown, ChevronsUpDown, Download } from 'lucide-react';
 import { Badge } from './ui/Badge';
 import { clsx } from 'clsx';
 import type { Job, SortField, SortDir, SortState, SearchFilters } from '@/types/job';
@@ -136,6 +136,18 @@ const COLUMNS: ColDef[] = [
   },
 ];
 
+const SORT_OPTIONS: { label: string; field: SortField; dir: SortDir }[] = [
+  { label: 'Newest first', field: 'datePostedRaw', dir: 'desc' },
+  { label: 'Oldest first', field: 'datePostedRaw', dir: 'asc' },
+  { label: 'Title A–Z', field: 'title', dir: 'asc' },
+  { label: 'Company A–Z', field: 'company', dir: 'asc' },
+  { label: 'Salary: High–Low', field: 'salary', dir: 'desc' },
+  { label: 'Salary: Low–High', field: 'salary', dir: 'asc' },
+  { label: 'Exp: High–Low', field: 'yearsExperience', dir: 'desc' },
+  { label: 'Exp: Low–High', field: 'yearsExperience', dir: 'asc' },
+  { label: 'Reposted first', field: 'isReposted', dir: 'desc' },
+];
+
 function getSortValue(job: Job, field: SortField): string | number | null {
   switch (field) {
     case 'title': return job.title.toLowerCase();
@@ -163,6 +175,86 @@ function SortIcon({ field, sort }: { field: SortField | null; sort: SortState })
     : <ChevronDown size={13} className="text-blue-500" />;
 }
 
+function MobileJobCard({ job }: { job: Job }) {
+  return (
+    <div className={clsx(
+      'bg-white dark:bg-gray-900 rounded-xl border shadow-sm p-4',
+      job.hasCommission
+        ? 'border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/10'
+        : 'border-gray-200 dark:border-gray-700'
+    )}>
+      {/* Top row: title + source badge */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <a
+            href={job.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-blue-700 dark:text-blue-400 hover:underline leading-snug line-clamp-2 text-base"
+          >
+            {job.title}
+          </a>
+          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-0.5">{job.company}</p>
+        </div>
+        <Badge label={job.source} variant="source" source={job.source} />
+      </div>
+
+      {/* Location + work type */}
+      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+        <span className="text-xs text-gray-500 dark:text-gray-400">{job.location}</span>
+        {job.workType !== 'Any' && (
+          <Badge label={job.workType} variant="workType" workType={job.workType} />
+        )}
+      </div>
+
+      {/* Meta row: salary, type, exp */}
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+        <span className={clsx(
+          'text-sm font-medium',
+          job.hasCommission ? 'text-amber-700 dark:text-amber-400' : 'text-gray-700 dark:text-gray-300'
+        )}>
+          {job.salaryDisplay}
+        </span>
+        {job.employmentType && (
+          <span className={clsx(
+            'text-xs font-medium rounded px-1.5 py-0.5 border self-center',
+            job.employmentType === 'Full-time' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800' :
+            job.employmentType === 'Part-time' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800' :
+            'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800'
+          )}>
+            {job.employmentType}
+          </span>
+        )}
+        {(job.yearsExperience !== null || job.yearsExperience === 0) && (
+          <span className="text-xs text-gray-500 dark:text-gray-400 self-center">
+            {job.yearsExperienceDisplay}
+          </span>
+        )}
+      </div>
+
+      {/* Bottom row: posted, reposted, apply button */}
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-gray-400 dark:text-gray-500">{job.datePosted}</span>
+          {job.isReposted && (
+            <span className="text-xs font-medium text-amber-700 bg-amber-100 dark:bg-amber-900/40 dark:text-amber-400 border border-amber-300 dark:border-amber-700 rounded px-1.5 py-0.5">
+              Reposted
+            </span>
+          )}
+        </div>
+        <a
+          href={job.applyUrl ?? job.sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          {job.applyUrl ? 'Apply' : 'View'} <ExternalLink size={12} />
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durationMs, filters, onExport }: ResultsTableProps) {
   const [sort, setSort] = useState<SortState>({ field: 'datePostedRaw', dir: 'desc' });
   const [filter, setFilter] = useState('');
@@ -172,6 +264,11 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
     setSort((prev) =>
       prev.field === field ? { field, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { field, dir: 'asc' }
     );
+  }, []);
+
+  const handleMobileSort = useCallback((value: string) => {
+    const opt = SORT_OPTIONS[Number(value)];
+    if (opt) setSort({ field: opt.field, dir: opt.dir });
   }, []);
 
   const sortFn = useCallback((a: Job, b: Job) => {
@@ -214,11 +311,16 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
 
   const errorMessages = Object.entries(errors).filter(([, msg]) => msg !== null);
 
+  const currentSortIndex = SORT_OPTIONS.findIndex(
+    (o) => o.field === sort.field && o.dir === sort.dir
+  );
+
   return (
     <div className="flex flex-col gap-3 h-full">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex-1 min-w-[200px]">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+        {/* Job count */}
+        <div className="flex-1 min-w-0">
           <p className="text-sm text-gray-600 dark:text-gray-400 leading-snug">
             <span className="font-semibold text-gray-900 dark:text-gray-100">{visibleJobs.length} jobs</span>
             {hiddenCount > 0 && (
@@ -231,29 +333,46 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
           </p>
         </div>
 
-        <input
-          type="search"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter results…"
-          className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
-        />
+        {/* Controls row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Filter input */}
+          <input
+            type="search"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter results…"
+            className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 w-40 sm:w-48"
+          />
 
-        <button
-          onClick={onExport}
-          disabled={jobs.length === 0}
-          className={clsx(
-            'flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium border transition-colors',
-            jobs.length === 0
-              ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-              : 'bg-green-600 hover:bg-green-700 text-white border-green-600 shadow-sm'
-          )}
-        >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Export CSV
-        </button>
+          {/* Mobile sort dropdown */}
+          <select
+            value={currentSortIndex >= 0 ? currentSortIndex : 0}
+            onChange={(e) => handleMobileSort(e.target.value)}
+            className="md:hidden border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Sort jobs"
+          >
+            {SORT_OPTIONS.map((opt, i) => (
+              <option key={i} value={i}>{opt.label}</option>
+            ))}
+          </select>
+
+          {/* Export button */}
+          <button
+            onClick={onExport}
+            disabled={jobs.length === 0}
+            className={clsx(
+              'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors',
+              jobs.length === 0
+                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                : 'bg-green-600 hover:bg-green-700 active:bg-green-800 text-white border-green-600 shadow-sm'
+            )}
+            aria-label="Export CSV"
+          >
+            <Download size={15} />
+            <span className="hidden sm:inline">Export CSV</span>
+            <span className="sm:hidden">CSV</span>
+          </button>
+        </div>
       </div>
 
       {/* Error banners */}
@@ -263,8 +382,21 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
         </div>
       ))}
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+      {/* Mobile: job cards */}
+      <div className="md:hidden flex flex-col gap-3 overflow-y-auto">
+        {visibleJobs.length === 0 ? (
+          <div className="py-16 text-center text-gray-400 dark:text-gray-500 text-sm">
+            {jobs.length > 0
+              ? 'No jobs match your filters. Try broadening your keyword search.'
+              : 'No jobs found. Tap Filters to search.'}
+          </div>
+        ) : (
+          visibleJobs.map((job) => <MobileJobCard key={job.id} job={job} />)
+        )}
+      </div>
+
+      {/* Desktop: table */}
+      <div className="hidden md:block flex-1 overflow-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
         <table className="min-w-full text-sm border-collapse">
           <thead>
             <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
