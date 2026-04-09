@@ -122,18 +122,12 @@ export default function HomePage() {
             </div>
           </div>
           <div className="flex gap-2 ml-4">
-            {['LinkedIn', 'Indeed', 'Glassdoor'].map((src) => (
-              <span
-                key={src}
-                className="text-xs px-2 py-0.5 rounded-full text-white font-medium"
-                style={{
-                  backgroundColor:
-                    src === 'LinkedIn' ? '#0077B5' : src === 'Indeed' ? '#2164F3' : '#0CAA41',
-                }}
-              >
-                {src}
-              </span>
-            ))}
+            <span
+              className="text-xs px-2 py-0.5 rounded-full text-white font-medium"
+              style={{ backgroundColor: '#0077B5' }}
+            >
+              LinkedIn
+            </span>
           </div>
           <div className="ml-auto flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             <span className="hidden sm:inline">No login required · Public data only</span>

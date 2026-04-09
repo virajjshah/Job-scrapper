@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { SearchFilters, ScrapeResult } from '@/types/job';
 import { scrapeLinkedIn } from '@/lib/scrapers/linkedin';
-import { scrapeIndeed } from '@/lib/scrapers/indeed';
-import { scrapeGlassdoor } from '@/lib/scrapers/glassdoor';
 import { scrapeCustomUrl } from '@/lib/scrapers/custom';
 import { deduplicateJobs } from '@/lib/deduplication';
 
@@ -14,44 +12,33 @@ export async function POST(req: NextRequest) {
 
   const errors: Record<string, string | null> = {
     LinkedIn: null,
-    Indeed: null,
-    Glassdoor: null,
   };
 
   const totalBySource: Record<string, number> = {
     LinkedIn: 0,
-    Indeed: 0,
-    Glassdoor: 0,
   };
 
-  // All scrapers use fetch — no browser binary needed, works on any platform
-  const [linkedInJobs, indeedJobs, glassdoorJobs] = await Promise.allSettled([
+  const [linkedInResult] = await Promise.allSettled([
     scrapeLinkedIn(filters),
-    scrapeIndeed(filters),
-    scrapeGlassdoor(filters),
   ]);
 
   const allJobs: import('@/types/job').Job[] = [];
 
-  if (linkedInJobs.status === 'fulfilled') {
-    totalBySource.LinkedIn = linkedInJobs.value.length;
-    allJobs.push(...linkedInJobs.value);
+  if (linkedInResult.status === 'fulfilled') {
+    totalBySource.LinkedIn = linkedInResult.value.length;
+    allJobs.push(...linkedInResult.value);
   } else {
-    errors.LinkedIn = linkedInJobs.reason?.message ?? 'LinkedIn scraping failed';
+    errors.LinkedIn = linkedInResult.reason?.message ?? 'LinkedIn scraping failed';
   }
 
-  if (indeedJobs.status === 'fulfilled') {
-    totalBySource.Indeed = indeedJobs.value.length;
-    allJobs.push(...indeedJobs.value);
-  } else {
-    errors.Indeed = indeedJobs.reason?.message ?? 'Indeed scraping failed';
-  }
-
-  if (glassdoorJobs.status === 'fulfilled') {
-    totalBySource.Glassdoor = glassdoorJobs.value.length;
-    allJobs.push(...glassdoorJobs.value);
-  } else {
-    errors.Glassdoor = glassdoorJobs.reason?.message ?? 'Glassdoor scraping failed';
+  // Custom URLs (if provided)
+  if (filters.customUrls?.length > 0) {
+    const customResults = await Promise.allSettled(
+      filters.customUrls.map((url) => scrapeCustomUrl(url))
+    );
+    for (const r of customResults) {
+      if (r.status === 'fulfilled') allJobs.push(...r.value);
+    }
   }
 
   const deduped = deduplicateJobs(allJobs);

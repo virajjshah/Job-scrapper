@@ -130,10 +130,8 @@ export function parseExperience(text: string): { years: number | null; display: 
   const result = tryExtract(text);
   if (result) return result;
 
-  // 3. Level keyword fallbacks
+  // 3. Entry-level keyword fallback only — avoid false positives from "Senior" in title
   if (ENTRY_LEVEL.test(text)) return { years: 0, display: 'Entry level' };
-  if (MID_LEVEL.test(text)) return { years: 3, display: 'Mid-level (~3 yrs)' };
-  if (SENIOR_LEVEL.test(text)) return { years: 7, display: 'Senior (7+ yrs)' };
 
   return { years: null, display: 'Not specified' };
 }

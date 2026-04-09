@@ -12,7 +12,7 @@ export function EmptyState() {
         <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">Ready to find your next role</h2>
         <p className="text-gray-500 dark:text-gray-400 mt-2 max-w-sm">
           Enter your job title or keywords in the panel, set your preferences, and click{' '}
-          <strong>Search Jobs</strong> to scrape LinkedIn, Indeed, and Glassdoor simultaneously.
+          <strong>Search Jobs</strong> to scrape LinkedIn.
         </p>
       </div>
       <div className="flex flex-wrap gap-2 justify-center mt-2">

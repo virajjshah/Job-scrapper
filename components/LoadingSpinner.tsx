@@ -10,22 +10,19 @@ export function LoadingSpinner({ message = 'Scraping jobs…' }: { message?: str
       <div className="text-center">
         <p className="text-gray-700 dark:text-gray-200 font-semibold text-base">{message}</p>
         <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">
-          Searching LinkedIn, Indeed &amp; Glassdoor — this may take 1–2 minutes
+          Searching LinkedIn — this may take 1–2 minutes
+        </p>
+        <p className="text-gray-300 dark:text-gray-600 text-xs mt-3 italic">
+          Results are scraped using AI. Salary, experience, and repost data may not always be accurate.
         </p>
       </div>
       <div className="flex gap-3 mt-2">
-        {['LinkedIn', 'Indeed', 'Glassdoor'].map((src, i) => (
-          <span
-            key={src}
-            className="px-3 py-1 rounded-full text-xs font-medium text-white animate-pulse"
-            style={{
-              backgroundColor: src === 'LinkedIn' ? '#0077B5' : src === 'Indeed' ? '#2164F3' : '#0CAA41',
-              animationDelay: `${i * 0.3}s`,
-            }}
-          >
-            {src}
-          </span>
-        ))}
+        <span
+          className="px-3 py-1 rounded-full text-xs font-medium text-white animate-pulse"
+          style={{ backgroundColor: '#0077B5' }}
+        >
+          LinkedIn
+        </span>
       </div>
     </div>
   );

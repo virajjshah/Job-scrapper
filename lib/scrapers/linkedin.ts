@@ -133,19 +133,22 @@ export async function scrapeLinkedIn(filters: SearchFilters): Promise<Job[]> {
       ).map((el) => el.textContent?.replace(/[✓✔\u2713\u2714]/g, '').trim() ?? '')
         .filter((t) => t.length > 0 && t.length < 60);
 
-      // Date & repost detection.
-      // LinkedIn sometimes puts "Reposted" as a sibling span next to <time>,
-      // not inside the <time> element itself. Check the parent container text
-      // and any class names containing "repost" to catch both patterns.
+      // Date & repost detection — ONLY check date-related elements,
+      // never scan full card text (cards contain job snippets that
+      // could contain the word "reposted" in description prose).
       const timeEl = li.querySelector('time');
       const dateText = timeEl?.textContent?.trim() ?? '';
-      const dateParentText = timeEl?.parentNode?.textContent?.trim() ?? '';
+      const dateParentText = (timeEl?.parentNode as any)?.textContent?.trim() ?? '';
       const timeClass = (timeEl?.getAttribute('class') ?? '').toLowerCase();
 
       const isReposted =
+        // 1. <time> element says "Reposted 3 hours ago"
         /\breposted\b/i.test(dateText) ||
+        // 2. Parent of <time> (catches sibling spans in same container)
         /\breposted\b/i.test(dateParentText) ||
+        // 3. Class name on <time> contains "repost"
         timeClass.includes('repost') ||
+        // 4. Explicit repost badge element
         li.querySelector('[class*="repost"]') !== null;
 
       if (title) {
@@ -268,6 +271,29 @@ async function scrapeLinkedInDetail(card: {
   const fullDescription = [chipParts.join(' · '), desc].filter(Boolean).join('\n\n');
   const empTypeText = empType || card.benefits.join(' ');
 
+  // Detail-page repost check — ONLY targeted elements, never full
+  // document text (descriptions often contain the word "reposted").
+  const REPOST_TS_RE = /reposted\s+\d+\s+(?:minute|hour|day|week|month)s?\s+ago/i;
+
+  // Only check date/time metadata elements — not description text
+  const metaEls = [
+    '[class*="posted-time"]',
+    '[class*="listed-time"]',
+    '[class*="topcard__flavor"]',
+    '[class*="posted-date"]',
+    '[class*="job-search-card__listdate"]',
+    'time',
+  ].flatMap((sel) => root.querySelectorAll(sel));
+
+  const detailIsReposted =
+    // 1. Tight timestamp pattern in full HTML (safe — descriptions
+    //    never say "reposted 3 hours ago" with that exact format)
+    REPOST_TS_RE.test(html) ||
+    // 2. Date/time metadata elements contain "reposted"
+    metaEls.some((el) => /\breposted\b/i.test(el.textContent ?? '')) ||
+    // 3. Explicit repost badge class
+    root.querySelector('[class*="repost"]') !== null;
+
   return buildJobFromRaw({
     title: card.title,
     company: card.company,
@@ -278,7 +304,7 @@ async function scrapeLinkedInDetail(card: {
     source: 'LinkedIn',
     employmentTypeText: empTypeText,
     applyUrl,
-    isReposted: card.isReposted,
+    isReposted: card.isReposted || detailIsReposted,
     // Combine all salary signals: JSON-LD > detail page chip > search card chip
     salaryHint: [ldData.salary, detailSalary, card.salary].filter(Boolean).join(' ') || undefined,
     industryHint: ldData.industry ?? null,
