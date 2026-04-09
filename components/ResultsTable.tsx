@@ -110,16 +110,6 @@ const COLUMNS: ColDef[] = [
     className: 'min-w-[90px]',
   },
   {
-    label: 'Reposted',
-    field: 'isReposted',
-    render: (job) => (
-      job.isReposted
-        ? <span className="inline-block text-xs font-medium text-amber-700 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5">Yes</span>
-        : <span className="text-xs text-gray-400">No</span>
-    ),
-    className: 'min-w-[80px]',
-  },
-  {
     label: 'Link',
     field: null,
     render: (job) => (
@@ -145,7 +135,6 @@ const SORT_OPTIONS: { label: string; field: SortField; dir: SortDir }[] = [
   { label: 'Salary: Low–High', field: 'salary', dir: 'asc' },
   { label: 'Exp: High–Low', field: 'yearsExperience', dir: 'desc' },
   { label: 'Exp: Low–High', field: 'yearsExperience', dir: 'asc' },
-  { label: 'Reposted first', field: 'isReposted', dir: 'desc' },
 ];
 
 function getSortValue(job: Job, field: SortField): string | number | null {
@@ -236,11 +225,6 @@ function MobileJobCard({ job }: { job: Job }) {
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-gray-400 dark:text-gray-500">{job.datePosted}</span>
-          {job.isReposted && (
-            <span className="text-xs font-medium text-amber-700 bg-amber-100 dark:bg-amber-900/40 dark:text-amber-400 border border-amber-300 dark:border-amber-700 rounded px-1.5 py-0.5">
-              Reposted
-            </span>
-          )}
         </div>
         <a
           href={job.applyUrl ?? job.sourceUrl}
