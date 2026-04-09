@@ -318,37 +318,34 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
   return (
     <div className="flex flex-col gap-3 h-full">
       {/* Toolbar */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+      <div className="flex flex-col gap-2">
         {/* Job count */}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-gray-600 dark:text-gray-400 leading-snug">
-            <span className="font-semibold text-gray-900 dark:text-gray-100">{visibleJobs.length} jobs</span>
-            {hiddenCount > 0 && (
-              <span className="text-gray-400 dark:text-gray-500"> · {hiddenCount} hidden by filters</span>
-            )}
-            {sourceCount && <span className="ml-1 text-gray-400 dark:text-gray-500">· {sourceCount}</span>}
-            {durationMs > 0 && (
-              <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">in {(durationMs / 1000).toFixed(1)}s</span>
-            )}
-          </p>
-        </div>
+        <p className="text-sm text-gray-600 dark:text-gray-400 leading-snug">
+          <span className="font-semibold text-gray-900 dark:text-gray-100">{visibleJobs.length} jobs</span>
+          {hiddenCount > 0 && (
+            <span className="text-gray-400 dark:text-gray-500"> · {hiddenCount} hidden by filters</span>
+          )}
+          {sourceCount && <span className="ml-1 text-gray-400 dark:text-gray-500">· {sourceCount}</span>}
+          {durationMs > 0 && (
+            <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">in {(durationMs / 1000).toFixed(1)}s</span>
+          )}
+        </p>
 
-        {/* Controls row */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Filter input */}
+        {/* Controls: single row, input fills space */}
+        <div className="flex items-center gap-2">
           <input
             type="search"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder="Filter results…"
-            className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 w-40 sm:w-48"
+            className="flex-1 min-w-0 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
 
           {/* Mobile sort dropdown */}
           <select
             value={currentSortIndex >= 0 ? currentSortIndex : 0}
             onChange={(e) => handleMobileSort(e.target.value)}
-            className="md:hidden border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="md:hidden flex-shrink-0 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             aria-label="Sort jobs"
           >
             {SORT_OPTIONS.map((opt, i) => (
@@ -361,7 +358,7 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
             onClick={onExport}
             disabled={jobs.length === 0}
             className={clsx(
-              'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors',
+              'flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors',
               jobs.length === 0
                 ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
                 : 'bg-green-600 hover:bg-green-700 active:bg-green-800 text-white border-green-600 shadow-sm'
@@ -382,8 +379,8 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
         </div>
       ))}
 
-      {/* Mobile: job cards */}
-      <div className="md:hidden flex flex-col gap-3 overflow-y-auto">
+      {/* Mobile: job cards — page scrolls naturally, no overflow needed */}
+      <div className="md:hidden flex flex-col gap-3">
         {visibleJobs.length === 0 ? (
           <div className="py-16 text-center text-gray-400 dark:text-gray-500 text-sm">
             {jobs.length > 0

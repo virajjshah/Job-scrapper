@@ -7,8 +7,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import type { ScrapeResult, SearchFilters } from '@/types/job';
 import { DEFAULT_FILTERS } from '@/types/job';
-import { Briefcase, AlertCircle, X, CheckCircle, SlidersHorizontal } from 'lucide-react';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { Briefcase, AlertCircle, X, CheckCircle, Search, Moon, Sun } from 'lucide-react';
 
 type ToastState = { type: 'success' | 'error'; message: string } | null;
 
@@ -19,6 +18,18 @@ export default function HomePage() {
   const [lastKeywords, setLastKeywords] = useState('');
   const [lastFilters, setLastFilters] = useState<SearchFilters>(DEFAULT_FILTERS);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    setDark(document.documentElement.classList.contains('dark'));
+  }, []);
+
+  const toggleTheme = () => {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle('dark', next);
+    try { localStorage.setItem('theme', next ? 'dark' : 'light'); } catch { /* ignore */ }
+  };
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -121,40 +132,42 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header */}
+      {/* ── Header ────────────────────────────────────────────────────── */}
       <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm z-20 sticky top-0">
         <div className="max-w-screen-2xl mx-auto px-4 py-3 flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <Briefcase size={18} className="text-white" />
             </div>
             <h1 className="text-base font-bold text-gray-900 dark:text-gray-100 leading-none">Job Scraper</h1>
           </div>
-          <div className="flex gap-2 ml-1">
-            <span
-              className="text-xs px-2 py-0.5 rounded-full text-white font-medium"
-              style={{ backgroundColor: '#0077B5' }}
-            >
-              LinkedIn
-            </span>
-          </div>
+
+          <span
+            className="text-xs px-2 py-0.5 rounded-full text-white font-medium flex-shrink-0"
+            style={{ backgroundColor: '#0077B5' }}
+          >
+            LinkedIn
+          </span>
+
           <div className="ml-auto flex items-center gap-2">
             <span className="hidden sm:inline text-xs text-gray-500 dark:text-gray-400">
               No login required · Public data only
             </span>
-            {/* Mobile: Filters button */}
+            {/* Theme toggle — always visible in header */}
             <button
-              onClick={() => setMobileFiltersOpen(true)}
-              className="md:hidden flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg active:bg-blue-700"
+              onClick={toggleTheme}
+              aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+              className="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 flex items-center justify-center transition-all hover:scale-110 active:scale-95"
             >
-              <SlidersHorizontal size={15} />
-              Filters
+              {dark
+                ? <Sun size={16} className="text-yellow-400" />
+                : <Moon size={16} className="text-gray-500" />}
             </button>
           </div>
         </div>
       </header>
 
-      {/* Mobile filter bottom-sheet drawer */}
+      {/* ── Mobile filter bottom-sheet drawer ─────────────────────────── */}
       {mobileFiltersOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           {/* Backdrop */}
@@ -181,7 +194,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Main layout */}
+      {/* ── Main layout ───────────────────────────────────────────────── */}
       <div className="flex flex-1 max-w-screen-2xl mx-auto w-full">
         {/* Sidebar — desktop only */}
         <aside className="hidden md:flex w-80 min-w-[280px] max-w-xs flex-shrink-0 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex-col">
@@ -191,7 +204,8 @@ export default function HomePage() {
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 flex flex-col overflow-hidden p-3 md:p-4 gap-3 md:gap-4 min-w-0 bg-gray-50 dark:bg-gray-950">
+        {/* pb-24 on mobile reserves space above the fixed bottom search bar */}
+        <main className="flex-1 flex flex-col md:overflow-hidden p-3 md:p-4 gap-3 md:gap-4 min-w-0 bg-gray-50 dark:bg-gray-950 pb-24 md:pb-4">
           {isLoading && <LoadingSpinner />}
           {!isLoading && !result && <EmptyState />}
           {!isLoading && result && (
@@ -208,8 +222,8 @@ export default function HomePage() {
         </main>
       </div>
 
-      {/* Footer */}
-      <footer className="text-center py-3 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0">
+      {/* Footer — desktop only (bottom bar takes that space on mobile) */}
+      <footer className="hidden md:block text-center py-3 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0">
         Made with ❤️ by{' '}
         <a
           href="https://www.linkedin.com/in/viraj-irl/"
@@ -221,12 +235,34 @@ export default function HomePage() {
         </a>
       </footer>
 
-      <ThemeToggle />
+      {/* ── Mobile: fixed bottom search bar ───────────────────────────── */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-3 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.3)]">
+        <button
+          onClick={() => setMobileFiltersOpen(true)}
+          className="w-full flex items-center gap-3 px-4 py-3.5 bg-gray-100 dark:bg-gray-800 rounded-2xl text-left border border-gray-200 dark:border-gray-700 active:bg-gray-200 dark:active:bg-gray-700 transition-colors"
+          aria-label="Open search and filters"
+        >
+          <Search size={18} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <span className={`block truncate text-sm ${lastKeywords ? 'text-gray-800 dark:text-gray-200 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
+              {lastKeywords || 'Job title, keywords…'}
+            </span>
+            {lastKeywords && lastFilters.location && (
+              <span className="block text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate">
+                {lastFilters.location}
+              </span>
+            )}
+          </div>
+          <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 flex-shrink-0">
+            {lastKeywords ? 'Edit' : 'Search'}
+          </span>
+        </button>
+      </div>
 
-      {/* Toast notification */}
+      {/* ── Toast notification ────────────────────────────────────────── */}
       {toast && (
         <div
-          className={`fixed bottom-5 left-4 right-4 sm:left-auto sm:right-5 sm:max-w-sm z-50 flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm ${
+          className={`fixed bottom-24 md:bottom-5 left-4 right-4 md:left-auto md:right-5 md:max-w-sm z-50 flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm ${
             toast.type === 'success'
               ? 'bg-white dark:bg-gray-800 border-green-200 dark:border-green-800 text-gray-800 dark:text-gray-100'
               : 'bg-white dark:bg-gray-800 border-red-200 dark:border-red-800 text-gray-800 dark:text-gray-100'

@@ -151,7 +151,8 @@ export async function scrapeLinkedIn(filters: SearchFilters): Promise<Job[]> {
         // 4. Explicit repost badge element
         li.querySelector('[class*="repost"]') !== null;
 
-      if (title) {
+      // Skip junk cards: need a real title (≥3 chars) and at least a company or href
+      if (title && title.length >= 3 && (company || href)) {
         allCards.push({ href, jobId, title, company, location, salary, benefits, isReposted, dateText });
         added++;
       }
