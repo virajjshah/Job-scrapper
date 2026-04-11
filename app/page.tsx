@@ -13,6 +13,27 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 
 type ToastState = { type: 'success' | 'error'; message: string } | null;
 
+function playDing() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const notes = [523.25, 659.25, 783.99]; // C5, E5, G5 — ascending major arpeggio
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.12;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.18, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+      osc.start(t);
+      osc.stop(t + 0.6);
+    });
+  } catch { /* audio not supported */ }
+}
+
 export default function HomePage() {
   const [result, setResult] = useState<ScrapeResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,6 +68,7 @@ export default function HomePage() {
 
       const data: ScrapeResult = await res.json();
       setResult(data);
+      playDing();
 
       const totalFound = data.jobs.length;
       const sources = Object.entries(data.totalBySource)
@@ -131,7 +153,7 @@ export default function HomePage() {
             </span>
           </div>
           <div className="ml-auto flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-            <span className="hidden sm:inline">No login required · Public data only</span>
+            <span className="hidden sm:inline">Free to use · No account needed</span>
           </div>
         </div>
       </header>

@@ -15,7 +15,10 @@ interface SearchPanelProps {
 const WORK_TYPES: WorkType[] = ['Any', 'Remote', 'Hybrid', 'On-site'];
 const EMP_TYPES: EmploymentType[] = ['Full-time', 'Part-time', 'Contract'];
 
+const SALARY_MAX = 300000;
+
 function formatSalary(v: number): string {
+  if (v >= SALARY_MAX) return '\u221e';
   if (v >= 1000) return `$${(v / 1000).toFixed(0)}K`;
   return `$${v}`;
 }
@@ -28,7 +31,7 @@ function formatDateDays(v: number): string {
   if (v === 0) return 'Any time';
   if (v < 1) return `${Math.round(v * 24)}h`;
   if (v % 7 === 0) return `${v / 7}w`;
-  return `${v}d`;
+  return `${parseFloat(v.toFixed(2))}d`;
 }
 
 const labelCls = 'block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1';
@@ -243,7 +246,7 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
             <DualSlider
               label="Salary"
               min={0}
-              max={300000}
+              max={SALARY_MAX}
               step={5000}
               value={[filters.salaryMin, filters.salaryMax]}
               onChange={([min, max]) => setFilters((p) => ({ ...p, salaryMin: min, salaryMax: max }))}
@@ -257,7 +260,7 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
                   value={filters.salaryMin}
                   onChange={(e) => update('salaryMin', Math.max(0, Number(e.target.value)))}
                   className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  min={0} max={300000} step={1000}
+                  min={0} max={SALARY_MAX} step={1000}
                 />
               </div>
               <div className="flex-1">
@@ -265,9 +268,10 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
                 <input
                   type="number"
                   value={filters.salaryMax}
-                  onChange={(e) => update('salaryMax', Math.min(300000, Number(e.target.value)))}
+                  onChange={(e) => update('salaryMax', Math.min(SALARY_MAX, Number(e.target.value)))}
                   className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  min={0} max={300000} step={1000}
+                  min={0} max={SALARY_MAX} step={1000}
+                  placeholder={filters.salaryMax >= SALARY_MAX ? '\u221e' : undefined}
                 />
               </div>
             </div>

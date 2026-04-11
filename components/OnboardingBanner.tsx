@@ -41,7 +41,7 @@ export function OnboardingBanner() {
             Welcome to Career Katalyst
           </h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            Smarter job hunting for the Toronto / GTA market
+            Smarter job hunting, powered by live data
           </p>
         </div>
       </div>
@@ -64,7 +64,7 @@ export function OnboardingBanner() {
                 </span>
                 <div>
                   <span className="text-xs font-medium text-gray-800 dark:text-gray-200">{label}</span>
-                  <span className="text-xs text-gray-400 dark:text-gray-500"> — {detail}</span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">: {detail}</span>
                 </div>
               </li>
             ))}
@@ -78,10 +78,10 @@ export function OnboardingBanner() {
           </p>
           <ul className="space-y-1.5">
             {[
-              'No login required — just search',
+              'Completely free, no sign-up needed',
               'Deduplicates listings automatically',
               'Parses salary & experience from descriptions',
-              'Export to CSV or Google Sheets',
+              'Export results to CSV',
             ].map((text) => (
               <li key={text} className="flex items-center gap-2">
                 <CheckCircle2 size={13} className="text-green-500 flex-shrink-0" />

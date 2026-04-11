@@ -9,8 +9,8 @@ const gabarito = Gabarito({
 });
 
 export const metadata: Metadata = {
-  title: 'Job Scraper — Toronto/GTA',
-  description: 'Search LinkedIn, Indeed & Glassdoor jobs in the Toronto/GTA area. Filter by salary, experience, work type, and more.',
+  title: 'Career Katalyst',
+  description: 'Search LinkedIn jobs. Filter by salary, experience, work type, and more.',
   icons: {
     icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polygon points='13 2 3 14 12 14 11 22 21 10 12 10 13 2'/></svg>",
   },
