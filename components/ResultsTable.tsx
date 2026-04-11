@@ -329,7 +329,15 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
             <table className="min-w-full text-sm border-collapse">
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {hiddenJobs.map((job) => (
-                  <tr key={job.id} className="dark:bg-gray-900">
+                  <tr
+                    key={job.id}
+                    className={clsx(
+                      'hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors',
+                      job.hasCommission
+                        ? 'bg-amber-50 dark:bg-amber-900/10 hover:bg-amber-100 dark:hover:bg-amber-900/20'
+                        : 'dark:bg-gray-900'
+                    )}
+                  >
                     {COLUMNS.map((col) => (
                       <td key={col.label} className={clsx('px-4 py-3 align-top', col.className)}>
                         {col.render(job)}

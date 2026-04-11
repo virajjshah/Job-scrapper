@@ -10,7 +10,7 @@ export function LoadingSpinner({ message = 'Scraping jobs\u2026' }: { message?: 
             <img
               src="/logo.svg"
               alt="Career Katalyst"
-              className="w-full h-full object-cover rounded-full"
+              className="w-full h-full object-contain"
               draggable={false}
             />
           </div>
