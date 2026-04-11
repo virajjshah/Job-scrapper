@@ -160,41 +160,56 @@ export async function scrapeLinkedIn(filters: SearchFilters): Promise<Job[]> {
     if (added === 0) break; // no more pages
   }
 
-  // ── Deep scrape every card's detail page ─────────────────────────────
+  // ── Deep scrape every card's detail page (batched parallel) ─────────
   // LinkedIn guest API jobPosting endpoint returns full plain-HTML with:
   // - Complete job description (salary ranges, years of experience mentioned in text)
   // - Job criteria section (Employment type, Seniority, Industries)
   // - Apply button (external URL for offsite applications)
-  for (const card of allCards) {
-    if (!card.title || !card.company) continue;
+  //
+  // Cards are scraped BATCH_SIZE at a time. Within each batch all requests
+  // run concurrently; a single inter-batch delay replaces per-request delays,
+  // yielding ~3× throughput while staying well within LinkedIn's rate limits.
+  const BATCH_SIZE = 3;
+  const validCards = allCards.filter((c) => c.title && c.company);
 
-    let job: Job | null = null;
-    if (card.jobId) {
-      try {
-        await sleep(1200 + Math.random() * 800); // 1.2–2s: paces requests, avoids 429
-        job = await scrapeLinkedInDetail(card);
-      } catch { /* fall through to card-only */ }
+  for (let i = 0; i < validCards.length; i += BATCH_SIZE) {
+    const batch = validCards.slice(i, i + BATCH_SIZE);
+
+    const batchResults = await Promise.allSettled(
+      batch.map(async (card) => {
+        if (card.jobId) {
+          try {
+            return await scrapeLinkedInDetail(card);
+          } catch { /* fall through to card-only */ }
+        }
+        // Card-data fallback — still pass card.salary as explicit hint so parseSalary sees it
+        const chipParts = [...card.benefits].filter(Boolean);
+        return buildJobFromRaw({
+          title: card.title,
+          company: card.company,
+          location: card.location,
+          description: chipParts.join(' · '),
+          datePostedText: card.dateText,
+          sourceUrl: card.href,
+          source: 'LinkedIn',
+          employmentTypeText: card.benefits.join(' '),
+          salaryHint: card.salary || undefined,
+          applyUrl: null,
+          isReposted: card.isReposted,
+        });
+      })
+    );
+
+    for (const result of batchResults) {
+      if (result.status === 'fulfilled' && result.value) {
+        jobs.push(result.value);
+      }
     }
 
-    if (!job) {
-      // Card-data fallback — still pass card.salary as explicit hint so parseSalary sees it
-      const chipParts = [...card.benefits].filter(Boolean);
-      job = buildJobFromRaw({
-        title: card.title,
-        company: card.company,
-        location: card.location,
-        description: chipParts.join(' · '),
-        datePostedText: card.dateText,
-        sourceUrl: card.href,
-        source: 'LinkedIn',
-        employmentTypeText: card.benefits.join(' '),
-        salaryHint: card.salary || undefined,
-        applyUrl: null,
-        isReposted: card.isReposted,
-      });
+    // One delay per batch (not per request) keeps total time ~3× lower
+    if (i + BATCH_SIZE < validCards.length) {
+      await sleep(800 + Math.random() * 400);
     }
-
-    jobs.push(job);
   }
 
   return jobs;
