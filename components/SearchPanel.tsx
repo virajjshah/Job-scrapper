@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { Search, Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { DualSlider } from './ui/DualSlider';
 import { clsx } from 'clsx';
 import type { SearchFilters, WorkType, EmploymentType } from '@/types/job';
-import { INDUSTRIES, DEFAULT_FILTERS } from '@/types/job';
+import { DEFAULT_FILTERS } from '@/types/job';
 
 interface SearchPanelProps {
   onSearch: (filters: SearchFilters) => void;
@@ -44,21 +44,8 @@ const inputCls =
 export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
   const [filters, setFilters] = useState<SearchFilters>(DEFAULT_FILTERS);
   const [showAdvanced, setShowAdvanced] = useState(true);
-  const [showIndustryDD, setShowIndustryDD] = useState(false);
   const [customHours, setCustomHours] = useState('');
-  const industryRef = useRef<HTMLDivElement>(null);
   const [newUrl, setNewUrl] = useState('');
-
-  // Close industry dropdown on outside click
-  useEffect(() => {
-    function handleOutside(e: MouseEvent) {
-      if (industryRef.current && !industryRef.current.contains(e.target as Node)) {
-        setShowIndustryDD(false);
-      }
-    }
-    if (showIndustryDD) document.addEventListener('mousedown', handleOutside);
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, [showIndustryDD]);
 
   const update = useCallback(<K extends keyof SearchFilters>(key: K, value: SearchFilters[K]) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -70,15 +57,6 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
       employmentTypes: prev.employmentTypes.includes(type)
         ? prev.employmentTypes.filter((t) => t !== type)
         : [...prev.employmentTypes, type],
-    }));
-  }, []);
-
-  const toggleIndustry = useCallback((industry: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      industries: prev.industries.includes(industry)
-        ? prev.industries.filter((i) => i !== industry)
-        : [...prev.industries, industry],
     }));
   }, []);
 
@@ -309,77 +287,6 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
               />
               Show jobs with no experience listed
             </label>
-          </div>
-
-          {/* Industry */}
-          <div ref={industryRef} className="relative">
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Industry / Sector</label>
-            <button
-              type="button"
-              onClick={() => setShowIndustryDD((v) => !v)}
-              className={clsx(
-                'w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg border transition-colors',
-                'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600',
-                'text-gray-700 dark:text-gray-300 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500'
-              )}
-            >
-              <span>
-                {filters.industries.length === 0
-                  ? 'All industries'
-                  : `${filters.industries.length} selected`}
-              </span>
-              {showIndustryDD ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
-
-            {showIndustryDD && (
-              <div className="absolute z-20 left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-52 overflow-y-auto">
-                {filters.industries.length > 0 && (
-                  <div className="px-3 py-1.5 border-b border-gray-100 dark:border-gray-700">
-                    <button
-                      type="button"
-                      onClick={() => setFilters((p) => ({ ...p, industries: [] }))}
-                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                    >
-                      Clear all
-                    </button>
-                  </div>
-                )}
-                {INDUSTRIES.map((ind) => (
-                  <label
-                    key={ind}
-                    className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 text-sm text-gray-700 dark:text-gray-300"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={filters.industries.includes(ind)}
-                      onChange={() => toggleIndustry(ind)}
-                      className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 shrink-0"
-                    />
-                    {ind}
-                  </label>
-                ))}
-              </div>
-            )}
-
-            {filters.industries.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {filters.industries.map((ind) => (
-                  <span
-                    key={ind}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 rounded-full"
-                  >
-                    {ind}
-                    <button
-                      type="button"
-                      onClick={() => toggleIndustry(ind)}
-                      className="hover:text-blue-900 dark:hover:text-blue-200"
-                    >
-                      <X size={10} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Custom Career Pages */}
