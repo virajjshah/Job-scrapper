@@ -28,25 +28,28 @@ html {
 
 /* ── Coin-flip loading animation ─────────────────────────────────── */
 .coin-scene {
-  perspective: 600px;
+  perspective: 900px;
 }
 
 .coin {
-  width: 80px;
-  height: 80px;
+  width: 180px;
+  height: 120px;
   position: relative;
   transform-style: preserve-3d;
-  animation: coin-flip 1.8s linear infinite;
+  animation: coin-flip 2.4s infinite;
 }
 
 .coin-face {
   position: absolute;
   inset: 0;
-  border-radius: 50%;
+  border-radius: 8px;
   overflow: hidden;
 }
 
 @keyframes coin-flip {
-  0%   { transform: rotateX(0deg); }
+  0%   { transform: rotateX(0deg);   animation-timing-function: ease-out; }
+  25%  { transform: rotateX(90deg);  animation-timing-function: ease-in;  }
+  50%  { transform: rotateX(180deg); animation-timing-function: ease-out; }
+  75%  { transform: rotateX(270deg); animation-timing-function: ease-in;  }
   100% { transform: rotateX(360deg); }
 }
