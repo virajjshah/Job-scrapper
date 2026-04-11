@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { OnboardingBanner } from '@/components/OnboardingBanner';
 import type { ScrapeResult, SearchFilters } from '@/types/job';
 import { DEFAULT_FILTERS } from '@/types/job';
-import { Zap, AlertCircle, X, CheckCircle } from 'lucide-react';
+import { Briefcase, AlertCircle, X, CheckCircle } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 type ToastState = { type: 'success' | 'error'; message: string } | null;
@@ -137,8 +137,8 @@ export default function HomePage() {
       <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm z-20 sticky top-0">
         <div className="max-w-screen-2xl mx-auto px-4 py-3 flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
-              <Zap size={16} className="text-white fill-white" />
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm" style={{ backgroundColor: 'hsl(169, 92%, 27%)' }}>
+              <Briefcase size={16} className="text-white" />
             </div>
             <div>
               <h1 className="text-base font-bold text-gray-900 dark:text-gray-100 leading-none">Job Scraper</h1>
