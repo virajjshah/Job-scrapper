@@ -16,7 +16,7 @@ export function EmptyState() {
         </p>
       </div>
       <div className="flex flex-wrap gap-2 justify-center mt-2">
-        {['Toronto/GTA focused', 'Deduplication built-in', 'Salary & experience parsing', 'Google Sheets export'].map(
+        {['Deduplication built-in', 'Salary & experience parsing', 'CSV export', 'No account needed'].map(
           (feature) => (
             <span key={feature} className="px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs rounded-full">
               {feature}
