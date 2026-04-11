@@ -110,16 +110,6 @@ const COLUMNS: ColDef[] = [
     className: 'min-w-[90px]',
   },
   {
-    label: 'Reposted',
-    field: 'isReposted',
-    render: (job) => (
-      job.isReposted
-        ? <span className="inline-block text-xs font-medium text-amber-700 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5">Yes</span>
-        : <span className="text-xs text-gray-400">No</span>
-    ),
-    className: 'min-w-[80px]',
-  },
-  {
     label: 'Link',
     field: null,
     render: (job) => (
