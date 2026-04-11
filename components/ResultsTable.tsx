@@ -184,7 +184,7 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
     return sort.dir === 'asc' ? cmp : -cmp;
   }, [sort]);
 
-  const { visibleJobs, hiddenCount } = useMemo(() => {
+  const { visibleJobs, hiddenJobs } = useMemo(() => {
     let list = [...jobs];
 
     if (filter.trim()) {
@@ -200,11 +200,12 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
     }
 
     const matching = list.filter((j) => jobMatchesFilters(j, filters));
-    const hidden = list.length - matching.length;
+    const hidden = list.filter((j) => !jobMatchesFilters(j, filters));
 
     matching.sort(sortFn);
+    hidden.sort(sortFn);
 
-    return { visibleJobs: matching, hiddenCount: hidden };
+    return { visibleJobs: matching, hiddenJobs: hidden };
   }, [jobs, filter, filters, sortFn]);
 
   const sourceCount = Object.entries(totalBySource)
@@ -221,8 +222,8 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
         <div className="flex-1 min-w-[200px]">
           <p className="text-sm text-gray-600 dark:text-gray-400 leading-snug">
             <span className="font-semibold text-gray-900 dark:text-gray-100">{visibleJobs.length} jobs</span>
-            {hiddenCount > 0 && (
-              <span className="text-gray-400 dark:text-gray-500"> · {hiddenCount} hidden by filters</span>
+            {hiddenJobs.length > 0 && (
+              <span className="text-gray-400 dark:text-gray-500"> · {hiddenJobs.length} shown below as potential matches</span>
             )}
             {sourceCount && <span className="ml-1 text-gray-400 dark:text-gray-500">· {sourceCount}</span>}
             {durationMs > 0 && (
@@ -317,6 +318,30 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
           </tbody>
         </table>
       </div>
+
+      {/* Potential Filtered Matches — dimmed section */}
+      {hiddenJobs.length > 0 && (
+        <div style={{ opacity: 0.66 }}>
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-1 mb-1">
+            Potential Filtered Matches ({hiddenJobs.length})
+          </p>
+          <div className="overflow-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+            <table className="min-w-full text-sm border-collapse">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {hiddenJobs.map((job) => (
+                  <tr key={job.id} className="dark:bg-gray-900">
+                    {COLUMNS.map((col) => (
+                      <td key={col.label} className={clsx('px-4 py-3 align-top', col.className)}>
+                        {col.render(job)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

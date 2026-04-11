@@ -3,10 +3,9 @@
 export function LoadingSpinner({ message = 'Scraping jobs\u2026' }: { message?: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-24 gap-6">
-      {/* 3D coin-flip animation — front: logo, back: brand gradient */}
+      {/* 3D coin-flip animation — logo only, no back face */}
       <div className="coin-scene">
         <div className="coin">
-          {/* Front face — logo */}
           <div className="coin-face">
             <img
               src="/logo.svg"
@@ -14,22 +13,6 @@ export function LoadingSpinner({ message = 'Scraping jobs\u2026' }: { message?: 
               className="w-full h-full object-cover rounded-full"
               draggable={false}
             />
-          </div>
-          {/* Back face — brand gradient with spark icon */}
-          <div className="coin-face coin-face--back">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="36"
-              height="36"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-            </svg>
           </div>
         </div>
       </div>

@@ -43,17 +43,7 @@ html {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
   overflow: hidden;
-}
-
-.coin-face--back {
-  transform: rotateX(180deg);
-  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 @keyframes coin-flip {
