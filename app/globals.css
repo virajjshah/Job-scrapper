@@ -48,8 +48,9 @@ html {
 
 @keyframes coin-spin {
   /* slow start (1x) → accelerate → fast middle (≈5x) → decelerate → slow end (1x) */
-  0%   { transform: rotateX(0deg);    animation-timing-function: ease-in; }
-  20%  { transform: rotateX(360deg);  animation-timing-function: linear;  }
-  80%  { transform: rotateX(7200deg); animation-timing-function: ease-out; }
-  100% { transform: rotateX(7560deg); }
+  /* scale shrinks during fast phase and grows back during slow phases */
+  0%   { transform: rotateX(0deg)    scale(1);    animation-timing-function: ease-in; }
+  20%  { transform: rotateX(360deg)  scale(0.62); animation-timing-function: linear;  }
+  80%  { transform: rotateX(7200deg) scale(0.62); animation-timing-function: ease-out; }
+  100% { transform: rotateX(7560deg) scale(1);    }
 }
