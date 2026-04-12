@@ -137,7 +137,7 @@ export default function HomePage() {
       <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm z-20 sticky top-0">
         <div className="max-w-screen-2xl mx-auto px-4 py-3 flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm" style={{ backgroundColor: 'hsl(169, 92%, 27%)' }}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm bg-blue-600">
               <ScanSearch size={16} className="text-white" />
             </div>
             <div>
@@ -167,10 +167,10 @@ export default function HomePage() {
       </header>
 
       {/* Main layout */}
-      <div className="flex flex-1 max-w-screen-2xl mx-auto w-full">
+      <div className="flex flex-col md:flex-row flex-1 max-w-screen-2xl mx-auto w-full">
         {/* Sidebar */}
-        <aside className="w-80 min-w-[280px] max-w-xs flex-shrink-0 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-          <div className="flex-1 p-4 overflow-y-auto">
+        <aside className="w-full md:w-80 md:min-w-[280px] md:max-w-xs flex-shrink-0 bg-white dark:bg-gray-900 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700 flex flex-col">
+          <div className="p-4 md:flex-1 md:overflow-y-auto">
             <SearchPanel onSearch={handleSearch} isLoading={isLoading} />
           </div>
         </aside>

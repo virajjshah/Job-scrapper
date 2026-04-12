@@ -22,7 +22,7 @@ export function LoadingSpinner({ message = 'Scraping jobs\u2026' }: { message?: 
         <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">
           Searching LinkedIn. This may take up to a minute.
         </p>
-        <p className="text-gray-300 dark:text-gray-600 text-xs mt-3 italic">
+        <p className="text-gray-400 dark:text-gray-500 text-sm mt-3 italic">
           Results are scraped live. Salary, experience, and repost data may not always be accurate.
         </p>
       </div>

@@ -12,7 +12,9 @@ export const metadata: Metadata = {
   title: 'Career Katalyst',
   description: 'Search LinkedIn jobs. Filter by salary, experience, work type, and more.',
   icons: {
-    icon: '/logo.svg',
+    icon: '/ck-icon.svg',
+    shortcut: '/ck-icon.svg',
+    apple: '/ck-icon.svg',
   },
 };
 
