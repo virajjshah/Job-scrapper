@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   basePath: '/advancedjobsearch',
+  env: {
+    NEXT_PUBLIC_BASE_PATH: '/advancedjobsearch',
+  },
   experimental: {
     serverComponentsExternalPackages: ['playwright'],
   },
