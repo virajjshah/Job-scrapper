@@ -430,13 +430,18 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
         </table>
       </div>
 
-      {/* Potential Filtered Matches — dimmed, desktop only */}
+      {/* Potential Filtered Matches — dimmed, shown on both mobile and desktop */}
       {hiddenJobs.length > 0 && (
-        <div className="hidden md:block" style={{ opacity: 0.66 }}>
-          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-1 mb-1">
+        <div style={{ opacity: 0.66 }}>
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-1 mb-2">
             Potential Filtered Matches ({hiddenJobs.length})
           </p>
-          <div className="overflow-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+          {/* Mobile cards */}
+          <div className="md:hidden flex flex-col gap-3">
+            {hiddenJobs.map((job) => <MobileJobCard key={job.id} job={job} />)}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
             <table className="min-w-full text-sm border-collapse">
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {hiddenJobs.map((job) => (

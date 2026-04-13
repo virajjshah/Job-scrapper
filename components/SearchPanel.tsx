@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Search, Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { DualSlider } from './ui/DualSlider';
 import { clsx } from 'clsx';
@@ -10,6 +10,7 @@ import { DEFAULT_FILTERS } from '@/types/job';
 interface SearchPanelProps {
   onSearch: (filters: SearchFilters) => void;
   isLoading: boolean;
+  autoFocusKeywords?: boolean;
 }
 
 const WORK_TYPES: WorkType[] = ['Any', 'Remote', 'Hybrid', 'On-site'];
@@ -41,11 +42,18 @@ const inputCls =
   'placeholder-gray-400 dark:placeholder-gray-500 ' +
   'focus:outline-none focus:ring-2 focus:ring-blue-500';
 
-export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
+export function SearchPanel({ onSearch, isLoading, autoFocusKeywords }: SearchPanelProps) {
   const [filters, setFilters] = useState<SearchFilters>(DEFAULT_FILTERS);
   const [showAdvanced, setShowAdvanced] = useState(true);
   const [customHours, setCustomHours] = useState('');
   const [newUrl, setNewUrl] = useState('');
+  const keywordsRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!autoFocusKeywords) return;
+    const t = setTimeout(() => keywordsRef.current?.focus(), 150);
+    return () => clearTimeout(t);
+  }, [autoFocusKeywords]);
 
   const update = useCallback(<K extends keyof SearchFilters>(key: K, value: SearchFilters[K]) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -90,6 +98,7 @@ export function SearchPanel({ onSearch, isLoading }: SearchPanelProps) {
       <div>
         <label className={labelCls}>Job Title / Keywords</label>
         <input
+          ref={keywordsRef}
           type="text"
           value={filters.keywords}
           onChange={(e) => update('keywords', e.target.value)}

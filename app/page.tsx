@@ -220,7 +220,7 @@ export default function HomePage() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
-              <SearchPanel onSearch={handleSearch} isLoading={isLoading} />
+              <SearchPanel onSearch={handleSearch} isLoading={isLoading} autoFocusKeywords />
             </div>
           </div>
         </div>
@@ -236,7 +236,7 @@ export default function HomePage() {
         </aside>
 
         {/* Main content — pb-24 on mobile reserves space above fixed bottom search bar */}
-        <main className="flex-1 flex flex-col md:overflow-hidden p-3 md:p-4 gap-3 md:gap-4 min-w-0 bg-gray-50 dark:bg-gray-950 pb-24 md:pb-4">
+        <main className="flex-1 flex flex-col md:overflow-hidden p-3 md:p-4 gap-3 md:gap-4 min-w-0 bg-gray-50 dark:bg-gray-950 pb-32 md:pb-4">
           {isLoading && <LoadingSpinner />}
 
           {/* OnboardingBanner only on desktop — mobile uses bottom drawer */}
@@ -271,7 +271,10 @@ export default function HomePage() {
       </footer>
 
       {/* ── Mobile: fixed bottom search bar ───────────────────────────── */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-3 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.3)]">
+      <div
+        className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-3 pt-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.3)]"
+        style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
+      >
         <button
           onClick={() => setMobileFiltersOpen(true)}
           className="w-full flex items-center gap-3 px-4 py-3.5 bg-gray-100 dark:bg-gray-800 rounded-2xl text-left border border-gray-200 dark:border-gray-700 active:bg-gray-200 dark:active:bg-gray-700 transition-colors"

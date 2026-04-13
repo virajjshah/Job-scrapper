@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Gabarito } from 'next/font/google';
 import './globals.css';
 
@@ -7,6 +7,10 @@ const gabarito = Gabarito({
   variable: '--font-gabarito',
   display: 'swap',
 });
+
+export const viewport: Viewport = {
+  viewportFit: 'cover',
+};
 
 export const metadata: Metadata = {
   title: 'Career Katalyst',
