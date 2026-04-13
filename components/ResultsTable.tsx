@@ -221,11 +221,9 @@ function MobileJobCard({ job }: { job: Job }) {
         )}
       </div>
 
-      {/* Bottom row: posted, reposted, apply button */}
+      {/* Bottom row: posted, apply button */}
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-gray-400 dark:text-gray-500">{job.datePosted}</span>
-        </div>
+        <span className="text-xs text-gray-400 dark:text-gray-500">{job.datePosted}</span>
         <a
           href={job.applyUrl ?? job.sourceUrl}
           target="_blank"
@@ -265,7 +263,7 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
     return sort.dir === 'asc' ? cmp : -cmp;
   }, [sort]);
 
-  const { visibleJobs, hiddenCount } = useMemo(() => {
+  const { visibleJobs, hiddenJobs } = useMemo(() => {
     let list = [...jobs];
 
     if (filter.trim()) {
@@ -281,11 +279,12 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
     }
 
     const matching = list.filter((j) => jobMatchesFilters(j, filters));
-    const hidden = list.length - matching.length;
+    const hidden = list.filter((j) => !jobMatchesFilters(j, filters));
 
     matching.sort(sortFn);
+    hidden.sort(sortFn);
 
-    return { visibleJobs: matching, hiddenCount: hidden };
+    return { visibleJobs: matching, hiddenJobs: hidden };
   }, [jobs, filter, filters, sortFn]);
 
   const sourceCount = Object.entries(totalBySource)
@@ -306,8 +305,8 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
         {/* Job count */}
         <p className="text-sm text-gray-600 dark:text-gray-400 leading-snug">
           <span className="font-semibold text-gray-900 dark:text-gray-100">{visibleJobs.length} jobs</span>
-          {hiddenCount > 0 && (
-            <span className="text-gray-400 dark:text-gray-500"> · {hiddenCount} hidden by filters</span>
+          {hiddenJobs.length > 0 && (
+            <span className="text-gray-400 dark:text-gray-500"> · {hiddenJobs.length} shown below as potential matches</span>
           )}
           {sourceCount && <span className="ml-1 text-gray-400 dark:text-gray-500">· {sourceCount}</span>}
           {durationMs > 0 && (
@@ -315,7 +314,7 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
           )}
         </p>
 
-        {/* Controls: single row, input fills space */}
+        {/* Controls: filter input + mobile sort + export */}
         <div className="flex items-center gap-2">
           <input
             type="search"
@@ -363,7 +362,7 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
         </div>
       ))}
 
-      {/* Mobile: job cards — page scrolls naturally, no overflow needed */}
+      {/* Mobile: job cards */}
       <div className="md:hidden flex flex-col gap-3">
         {visibleJobs.length === 0 ? (
           <div className="py-16 text-center text-gray-400 dark:text-gray-500 text-sm">
@@ -430,6 +429,38 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
           </tbody>
         </table>
       </div>
+
+      {/* Potential Filtered Matches — dimmed, desktop only */}
+      {hiddenJobs.length > 0 && (
+        <div className="hidden md:block" style={{ opacity: 0.66 }}>
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-1 mb-1">
+            Potential Filtered Matches ({hiddenJobs.length})
+          </p>
+          <div className="overflow-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+            <table className="min-w-full text-sm border-collapse">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {hiddenJobs.map((job) => (
+                  <tr
+                    key={job.id}
+                    className={clsx(
+                      'hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors',
+                      job.hasCommission
+                        ? 'bg-amber-50 dark:bg-amber-900/10 hover:bg-amber-100 dark:hover:bg-amber-900/20'
+                        : 'dark:bg-gray-900'
+                    )}
+                  >
+                    {COLUMNS.map((col) => (
+                      <td key={col.label} className={clsx('px-4 py-3 align-top', col.className)}>
+                        {col.render(job)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

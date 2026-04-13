@@ -5,11 +5,33 @@ import { SearchPanel } from '@/components/SearchPanel';
 import { ResultsTable } from '@/components/ResultsTable';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
+import { OnboardingBanner } from '@/components/OnboardingBanner';
 import type { ScrapeResult, SearchFilters } from '@/types/job';
 import { DEFAULT_FILTERS } from '@/types/job';
-import { Briefcase, AlertCircle, X, CheckCircle, Search, Moon, Sun } from 'lucide-react';
+import { ScanSearch, AlertCircle, X, CheckCircle, Search, Moon, Sun } from 'lucide-react';
 
 type ToastState = { type: 'success' | 'error'; message: string } | null;
+
+function playDing() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const notes = [523.25, 659.25, 783.99]; // C5, E5, G5 — ascending major arpeggio
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.12;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.18, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+      osc.start(t);
+      osc.stop(t + 0.6);
+    });
+  } catch { /* audio not supported */ }
+}
 
 export default function HomePage() {
   const [result, setResult] = useState<ScrapeResult | null>(null);
@@ -69,6 +91,7 @@ export default function HomePage() {
 
       const data: ScrapeResult = await res.json();
       setResult(data);
+      playDing();
 
       const totalFound = data.jobs.length;
       const sources = Object.entries(data.totalBySource)
@@ -136,22 +159,31 @@ export default function HomePage() {
       <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm z-20 sticky top-0">
         <div className="max-w-screen-2xl mx-auto px-4 py-3 flex items-center gap-3">
           <div className="flex items-center gap-2 flex-shrink-0">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Briefcase size={18} className="text-white" />
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm">
+              <ScanSearch size={16} className="text-white" />
             </div>
             <h1 className="text-base font-bold text-gray-900 dark:text-gray-100 leading-none">Job Scraper</h1>
           </div>
 
-          <span
-            className="text-xs px-2 py-0.5 rounded-full text-white font-medium flex-shrink-0"
-            style={{ backgroundColor: '#0077B5' }}
+          {/* LinkedIn official logo */}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            width="20"
+            height="20"
+            aria-label="LinkedIn"
+            role="img"
+            className="flex-shrink-0"
           >
-            LinkedIn
-          </span>
+            <path
+              d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"
+              fill="#0077B5"
+            />
+          </svg>
 
           <div className="ml-auto flex items-center gap-2">
             <span className="hidden sm:inline text-xs text-gray-500 dark:text-gray-400">
-              No login required · Public data only
+              Free to use · No account needed
             </span>
             {/* Theme toggle — always visible in header */}
             <button
@@ -203,10 +235,13 @@ export default function HomePage() {
           </div>
         </aside>
 
-        {/* Main content */}
-        {/* pb-24 on mobile reserves space above the fixed bottom search bar */}
+        {/* Main content — pb-24 on mobile reserves space above fixed bottom search bar */}
         <main className="flex-1 flex flex-col md:overflow-hidden p-3 md:p-4 gap-3 md:gap-4 min-w-0 bg-gray-50 dark:bg-gray-950 pb-24 md:pb-4">
           {isLoading && <LoadingSpinner />}
+
+          {/* OnboardingBanner only on desktop — mobile uses bottom drawer */}
+          {!isLoading && !result && <div className="hidden md:block"><OnboardingBanner /></div>}
+
           {!isLoading && !result && <EmptyState />}
           {!isLoading && result && (
             <ResultsTable
@@ -222,7 +257,7 @@ export default function HomePage() {
         </main>
       </div>
 
-      {/* Footer — desktop only (bottom bar takes that space on mobile) */}
+      {/* Footer — desktop only (bottom bar occupies that zone on mobile) */}
       <footer className="hidden md:block text-center py-3 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0">
         Made with ❤️ by{' '}
         <a

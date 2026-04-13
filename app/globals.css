@@ -25,3 +25,31 @@ html {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* ── Coin-flip loading animation ─────────────────────────────────── */
+.coin-scene {
+  perspective: 900px;
+}
+
+.coin {
+  width: 180px;
+  height: 120px;
+  position: relative;
+  transform-style: preserve-3d;
+  animation: coin-spin 12s linear infinite;
+}
+
+.coin-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+@keyframes coin-spin {
+  /* very short slow start → immediately accelerates → fast middle (≈5x) → decelerate → slow end */
+  0%   { transform: rotateX(0deg)    scale(1);    animation-timing-function: ease-in; }
+  8%   { transform: rotateX(360deg)  scale(0.42); animation-timing-function: linear;  }
+  85%  { transform: rotateX(7200deg) scale(0.42); animation-timing-function: ease-out; }
+  100% { transform: rotateX(7560deg) scale(1);    }
+}

@@ -66,7 +66,9 @@ export function DualSlider({ min, max, step = 1, value, onChange, formatLabel, l
     <div className="space-y-2">
       <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
         <span>{formatLabel ? formatLabel(lo) : lo}</span>
-        <span>{formatLabel ? formatLabel(hi) : hi}{hi >= max ? '+' : ''}</span>
+        <span className={hi >= max ? 'text-base font-semibold' : ''}>
+          {formatLabel ? formatLabel(hi) : hi}
+        </span>
       </div>
       <div className="relative h-5 flex items-center">
         {/* Track */}
