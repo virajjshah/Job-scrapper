@@ -8,7 +8,7 @@ export function LoadingSpinner({ message = 'Scraping jobs\u2026' }: { message?: 
         <div className="coin">
           <div className="coin-face">
             <img
-              src="/logo.svg"
+              src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/logo.svg`}
               alt="Career Katalyst"
               className="w-full h-full object-contain"
               draggable={false}
