@@ -254,6 +254,19 @@ export default function HomePage() {
               onExport={handleExport}
             />
           )}
+
+          {/* Attribution — mobile only; desktop uses the <footer> below */}
+          <p className="md:hidden text-center text-xs text-gray-400 dark:text-gray-500 py-2 mt-auto">
+            Made with ❤️ by{' '}
+            <a
+              href="https://www.linkedin.com/in/viraj-irl/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline font-medium text-gray-500 dark:text-gray-400"
+            >
+              Viraj Shah
+            </a>
+          </p>
         </main>
       </div>
 
