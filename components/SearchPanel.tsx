@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Search, Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { DualSlider } from './ui/DualSlider';
 import { clsx } from 'clsx';
@@ -49,12 +49,6 @@ export function SearchPanel({ onSearch, isLoading, autoFocusKeywords }: SearchPa
   const [newUrl, setNewUrl] = useState('');
   const keywordsRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!autoFocusKeywords) return;
-    const t = setTimeout(() => keywordsRef.current?.focus(), 150);
-    return () => clearTimeout(t);
-  }, [autoFocusKeywords]);
-
   const update = useCallback(<K extends keyof SearchFilters>(key: K, value: SearchFilters[K]) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
   }, []);
@@ -99,6 +93,8 @@ export function SearchPanel({ onSearch, isLoading, autoFocusKeywords }: SearchPa
         <label className={labelCls}>Job Title / Keywords</label>
         <input
           ref={keywordsRef}
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus={!!autoFocusKeywords}
           type="text"
           value={filters.keywords}
           onChange={(e) => update('keywords', e.target.value)}

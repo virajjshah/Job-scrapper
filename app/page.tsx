@@ -285,7 +285,7 @@ export default function HomePage() {
 
       {/* ── Mobile: fixed bottom search bar ───────────────────────────── */}
       <div
-        className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-3 pt-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.3)]"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-3 pt-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.3)]"
         style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
       >
         <button
