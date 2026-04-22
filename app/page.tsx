@@ -254,13 +254,13 @@ export default function HomePage() {
                 <Search size={20} />
                 Search Jobs
               </button>
-              <p className="text-center text-xs text-gray-400 dark:text-gray-500">
+              <p className="text-center text-sm text-gray-600 dark:text-gray-300">
                 Made with ❤️ by{' '}
                 <a
                   href="https://www.linkedin.com/in/viraj-irl/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="underline font-medium text-gray-500 dark:text-gray-400"
+                  className="underline font-medium text-gray-700 dark:text-gray-200"
                 >
                   Viraj Shah
                 </a>
