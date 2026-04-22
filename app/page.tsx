@@ -244,13 +244,12 @@ export default function HomePage() {
 
           {!isLoading && !result && <EmptyState />}
 
-          {/* Mobile: inline search trigger + attribution — sits in content flow,
-              always visible regardless of browser chrome overlap on the fixed bar */}
+          {/* Mobile + Desktop: inline search trigger + attribution — sits in content flow */}
           {!isLoading && !result && (
-            <div className="md:hidden flex flex-col items-center gap-3 pb-2">
+            <div className="flex flex-col items-center gap-3 pb-2">
               <button
                 onClick={() => setMobileFiltersOpen(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-2xl font-semibold text-base transition-colors shadow-lg"
+                className="md:hidden w-full flex items-center justify-center gap-2 px-4 py-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-2xl font-semibold text-base transition-colors shadow-lg"
               >
                 <Search size={20} />
                 Search Jobs
@@ -283,8 +282,9 @@ export default function HomePage() {
         </main>
       </div>
 
-      {/* Footer — desktop only */}
-      <footer className="hidden md:block text-center py-3 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0">
+      {/* Footer — desktop only (hidden when showing empty state since attribution is inline) */}
+      {result && (
+        <footer className="hidden md:block text-center py-3 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0">
         Made with ❤️ by{' '}
         <a
           href="https://www.linkedin.com/in/viraj-irl/"
@@ -294,7 +294,8 @@ export default function HomePage() {
         >
           Viraj Shah
         </a>
-      </footer>
+        </footer>
+      )}
 
       {/* ── Toast notification ────────────────────────────────────────── */}
       {toast && (
