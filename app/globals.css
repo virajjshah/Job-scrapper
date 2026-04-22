@@ -26,6 +26,18 @@ html {
   background: #94a3b8;
 }
 
+/* Prevent iOS auto-zoom on input focus (triggers when font-size < 16px) */
+@media (max-width: 767px) {
+  input[type="text"],
+  input[type="search"],
+  input[type="number"],
+  input[type="url"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* ── Coin-flip loading animation ─────────────────────────────────── */
 .coin-scene {
   perspective: 900px;

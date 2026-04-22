@@ -154,7 +154,7 @@ export default function HomePage() {
   }, [result, lastKeywords]);
 
   return (
-    <div className="h-dvh flex flex-col">
+    <div className="min-h-screen flex flex-col">
       {/* ── Header ────────────────────────────────────────────────────── */}
       <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm z-20 sticky top-0">
         <div className="max-w-screen-2xl mx-auto px-4 py-3 flex items-center gap-3">
@@ -227,7 +227,7 @@ export default function HomePage() {
       )}
 
       {/* ── Main layout ───────────────────────────────────────────────── */}
-      <div className="flex flex-1 max-w-screen-2xl mx-auto w-full min-h-0">
+      <div className="flex flex-1 max-w-screen-2xl mx-auto w-full">
         {/* Sidebar — desktop only */}
         <aside className="hidden md:flex w-80 min-w-[280px] max-w-xs flex-shrink-0 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex-col">
           <div className="flex-1 p-4 overflow-y-auto">
@@ -236,7 +236,7 @@ export default function HomePage() {
         </aside>
 
         {/* Main content — pb-24 on mobile reserves space above fixed bottom search bar */}
-        <main className="flex-1 flex flex-col overflow-y-auto md:overflow-hidden p-3 md:p-4 gap-3 md:gap-4 min-w-0 bg-gray-50 dark:bg-gray-950 pb-4">
+        <main className="flex-1 flex flex-col md:overflow-hidden p-3 md:p-4 gap-3 md:gap-4 min-w-0 bg-gray-50 dark:bg-gray-950 pb-28 md:pb-4">
           {isLoading && <LoadingSpinner />}
 
           {/* OnboardingBanner only on desktop — mobile uses bottom drawer */}
@@ -256,7 +256,7 @@ export default function HomePage() {
           )}
 
           {/* Attribution — mobile only; desktop uses the <footer> below */}
-          <p className="md:hidden text-center text-xs text-gray-400 dark:text-gray-500 py-2">
+          <p className="md:hidden text-center text-xs text-gray-400 dark:text-gray-500 py-2 mt-auto">
             Made with ❤️ by{' '}
             <a
               href="https://www.linkedin.com/in/viraj-irl/"
@@ -270,9 +270,22 @@ export default function HomePage() {
         </main>
       </div>
 
-      {/* ── Mobile: search bar — in document flow so browser chrome can't overlap it ── */}
+      {/* Footer — desktop only */}
+      <footer className="hidden md:block text-center py-3 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0">
+        Made with ❤️ by{' '}
+        <a
+          href="https://www.linkedin.com/in/viraj-irl/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+        >
+          Viraj Shah
+        </a>
+      </footer>
+
+      {/* ── Mobile: fixed bottom search bar ───────────────────────────── */}
       <div
-        className="md:hidden shrink-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-3 pt-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.3)]"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-3 pt-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.3)]"
         style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
       >
         <button
@@ -313,7 +326,7 @@ export default function HomePage() {
       {/* ── Toast notification ────────────────────────────────────────── */}
       {toast && (
         <div
-          className={`fixed bottom-20 md:bottom-5 left-4 right-4 md:left-auto md:right-5 md:max-w-sm z-50 flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm ${
+          className={`fixed bottom-24 md:bottom-5 left-4 right-4 md:left-auto md:right-5 md:max-w-sm z-50 flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm ${
             toast.type === 'success'
               ? 'bg-white dark:bg-gray-800 border-green-200 dark:border-green-800 text-gray-800 dark:text-gray-100'
               : 'bg-white dark:bg-gray-800 border-red-200 dark:border-red-800 text-gray-800 dark:text-gray-100'
