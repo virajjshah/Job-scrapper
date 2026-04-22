@@ -243,6 +243,32 @@ export default function HomePage() {
           {!isLoading && !result && <div className="hidden md:block"><OnboardingBanner /></div>}
 
           {!isLoading && !result && <EmptyState />}
+
+          {/* Mobile: inline search trigger + attribution — sits in content flow,
+              always visible regardless of browser chrome overlap on the fixed bar */}
+          {!isLoading && !result && (
+            <div className="md:hidden flex flex-col items-center gap-3 pb-2">
+              <button
+                onClick={() => setMobileFiltersOpen(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-2xl font-semibold text-base transition-colors shadow-lg"
+              >
+                <Search size={20} />
+                Search Jobs
+              </button>
+              <p className="text-center text-xs text-gray-400 dark:text-gray-500">
+                Made with ❤️ by{' '}
+                <a
+                  href="https://www.linkedin.com/in/viraj-irl/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline font-medium text-gray-500 dark:text-gray-400"
+                >
+                  Viraj Shah
+                </a>
+              </p>
+            </div>
+          )}
+
           {!isLoading && result && (
             <ResultsTable
               jobs={result.jobs}
@@ -254,19 +280,6 @@ export default function HomePage() {
               onExport={handleExport}
             />
           )}
-
-          {/* Attribution — mobile only; desktop uses the <footer> below */}
-          <p className="md:hidden text-center text-xs text-gray-400 dark:text-gray-500 py-2 mt-auto">
-            Made with ❤️ by{' '}
-            <a
-              href="https://www.linkedin.com/in/viraj-irl/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline font-medium text-gray-500 dark:text-gray-400"
-            >
-              Viraj Shah
-            </a>
-          </p>
         </main>
       </div>
 

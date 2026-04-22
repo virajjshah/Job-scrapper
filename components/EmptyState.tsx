@@ -4,7 +4,7 @@ import { Search } from 'lucide-react';
 
 export function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+    <div className="flex flex-col items-center justify-center py-8 md:py-24 gap-4 text-center">
       <div className="w-20 h-20 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
         <Search size={36} className="text-blue-400 dark:text-blue-500" />
       </div>
