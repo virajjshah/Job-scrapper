@@ -5,7 +5,7 @@ const BOLD_LOWER_BASE = 0x1d41a;
 const BOLD_DIGIT_BASE = 0x1d7ce;
 
 export function toLinkedInBold(text: string): string {
-  return [...text].map((ch) => {
+  return Array.from(text).map((ch) => {
     const c = ch.codePointAt(0)!;
     if (c >= 65 && c <= 90) return String.fromCodePoint(BOLD_UPPER_BASE + c - 65);
     if (c >= 97 && c <= 122) return String.fromCodePoint(BOLD_LOWER_BASE + c - 97);
@@ -70,11 +70,16 @@ export function formatJobsAsLinkedInText(jobs: Job[], keywords: string): string 
   const header = `Job Search: ${keywords || 'All'} — ${jobs.length} result${jobs.length !== 1 ? 's' : ''}`;
   const divider = '─'.repeat(60);
 
+const NUMBER_EMOJIS = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
+function toNumberEmoji(n: number): string {
+  return n >= 1 && n <= 10 ? NUMBER_EMOJIS[n - 1] : `${n}.`;
+}
+
   const lines = jobs.map((job, i) => {
     const flag = getCountryFlag(job.location);
     const link = job.applyUrl ?? job.sourceUrl;
     return [
-      `${i + 1}. ${job.title}`,
+      `${toNumberEmoji(i + 1)} ${job.title}`,
       job.company,
       formatSalary(job),
       `${job.location} ${flag}`,
