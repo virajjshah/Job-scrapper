@@ -14,6 +14,11 @@ export function toLinkedInBold(text: string): string {
   }).join('');
 }
 
+const NUMBER_EMOJIS = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
+function toNumberEmoji(n: number): string {
+  return n >= 1 && n <= 10 ? NUMBER_EMOJIS[n - 1] : `${n}.`;
+}
+
 const CA_PROVINCES = new Set([
   'ON', 'BC', 'AB', 'QC', 'MB', 'SK', 'NS', 'NB', 'NL', 'PE', 'NT', 'YT', 'NU',
 ]);
@@ -38,7 +43,6 @@ export function getCountryFlag(location: string): string {
   if (/\b(NETHERLANDS|HOLLAND)\b/.test(upper)) return '🇳🇱';
   if (/\bIRELAND\b/.test(upper)) return '🇮🇪';
 
-  // Match trailing province/state code, e.g. "Toronto, ON" or "New York, NY"
   const codeMatch = location.match(/,\s*([A-Z]{2,3})\s*$/i);
   if (codeMatch) {
     const code = codeMatch[1].toUpperCase();
@@ -47,7 +51,6 @@ export function getCountryFlag(location: string): string {
     if (AU_STATES.has(code)) return '🇦🇺';
   }
 
-  // City keywords
   if (/\b(LONDON|MANCHESTER|BIRMINGHAM|GLASGOW|EDINBURGH|BRISTOL|LIVERPOOL)\b/.test(upper)) return '🇬🇧';
   if (/\b(SYDNEY|MELBOURNE|BRISBANE|PERTH|ADELAIDE)\b/.test(upper)) return '🇦🇺';
   if (/\b(BERLIN|MUNICH|MÜNCHEN|HAMBURG|FRANKFURT|COLOGNE|DÜSSELDORF)\b/.test(upper)) return '🇩🇪';
@@ -67,13 +70,7 @@ function formatSalary(job: Job): string {
 }
 
 export function formatJobsAsLinkedInText(jobs: Job[], keywords: string): string {
-  const header = `Job Search: ${keywords || 'All'} — ${jobs.length} result${jobs.length !== 1 ? 's' : ''}`;
-  const divider = '─'.repeat(60);
-
-const NUMBER_EMOJIS = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
-function toNumberEmoji(n: number): string {
-  return n >= 1 && n <= 10 ? NUMBER_EMOJIS[n - 1] : `${n}.`;
-}
+  const header = `🍉 Here are the top ${keywords || 'job'} jobs in the past 24 hours!`;
 
   const lines = jobs.map((job, i) => {
     const flag = getCountryFlag(job.location);
@@ -87,5 +84,5 @@ function toNumberEmoji(n: number): string {
     ].join(' | ');
   });
 
-  return [header, divider, ...lines].join('\n');
+  return [header, '', ...lines].join('\n\n');
 }
