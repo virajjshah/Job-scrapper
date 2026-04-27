@@ -1,8 +1,8 @@
 import type { Job } from '@/types/job';
 
-const BOLD_UPPER_BASE = 0x1d400;
-const BOLD_LOWER_BASE = 0x1d41a;
-const BOLD_DIGIT_BASE = 0x1d7ce;
+const BOLD_UPPER_BASE = 0x1d5d4; // Mathematical Sans-Serif Bold
+const BOLD_LOWER_BASE = 0x1d5ee;
+const BOLD_DIGIT_BASE = 0x1d7ec;
 
 export function toLinkedInBold(text: string): string {
   return Array.from(text).map((ch) => {
@@ -60,29 +60,33 @@ export function getCountryFlag(location: string): string {
   return '🌍';
 }
 
-function formatSalary(job: Job): string {
-  if (!job.salary) return toLinkedInBold('Not listed');
+function formatSalary(job: Job): string | null {
+  if (!job.salary) return job.salaryDisplay ? toLinkedInBold(job.salaryDisplay) : null;
   const { min, max } = job.salary;
   if (min && max) return toLinkedInBold(`$${min.toLocaleString()} – $${max.toLocaleString()} CAD`);
   if (max) return toLinkedInBold(`Up to $${max.toLocaleString()} CAD`);
   if (min) return toLinkedInBold(`From $${min.toLocaleString()} CAD`);
-  return job.salaryDisplay ? toLinkedInBold(job.salaryDisplay) : toLinkedInBold('Not listed');
+  return null;
 }
+
+const SEPARATOR = '——————————————————';
 
 export function formatJobsAsLinkedInText(jobs: Job[], keywords: string): string {
   const header = `🍉 Here are the top ${keywords || 'job'} jobs in the past 24 hours!`;
 
-  const lines = jobs.map((job, i) => {
+  const blocks = jobs.map((job, i) => {
     const flag = getCountryFlag(job.location);
     const link = job.applyUrl ?? job.sourceUrl;
-    return [
+    const salary = formatSalary(job);
+    const fields = [
       `${toNumberEmoji(i + 1)} ${job.title}`,
       job.company,
-      formatSalary(job),
+      ...(salary ? [salary] : []),
       `${job.location} ${flag}`,
       link,
-    ].join(' | ');
+    ];
+    return fields.join(' | ') + '\n' + SEPARATOR;
   });
 
-  return [header, '', ...lines].join('\n\n');
+  return [header, '', ...blocks].join('\n\n');
 }
