@@ -69,12 +69,10 @@ function formatSalary(job: Job): string | null {
   return null;
 }
 
-const SEPARATOR = '——————————————————';
-
 export function formatJobsAsLinkedInText(jobs: Job[], keywords: string): string {
   const header = `🍉 Here are the top ${keywords || 'job'} jobs in the past 24 hours!`;
 
-  const blocks = jobs.map((job, i) => {
+  const lines = jobs.map((job, i) => {
     const flag = getCountryFlag(job.location);
     const link = job.applyUrl ?? job.sourceUrl;
     const salary = formatSalary(job);
@@ -85,8 +83,8 @@ export function formatJobsAsLinkedInText(jobs: Job[], keywords: string): string 
       `${job.location} ${flag}`,
       link,
     ];
-    return fields.join(' | ') + '\n' + SEPARATOR;
+    return fields.join(' | ');
   });
 
-  return [header, '', ...blocks].join('\n\n');
+  return [header, '', ...lines].join('\n\n');
 }
