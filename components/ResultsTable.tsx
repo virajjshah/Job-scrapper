@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { ExternalLink, ChevronUp, ChevronDown, ChevronsUpDown, Download } from 'lucide-react';
+import { ExternalLink, ChevronUp, ChevronDown, ChevronsUpDown, Download, FileText } from 'lucide-react';
 import { Badge } from './ui/Badge';
 import { clsx } from 'clsx';
 import type { Job, SortField, SortDir, SortState, SearchFilters } from '@/types/job';
@@ -15,6 +15,7 @@ interface ResultsTableProps {
   durationMs: number;
   filters: SearchFilters;
   onExport: () => void;
+  onLinkedInExport?: () => void;
 }
 
 type ColDef = {
@@ -237,7 +238,7 @@ function MobileJobCard({ job }: { job: Job }) {
   );
 }
 
-export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durationMs, filters, onExport }: ResultsTableProps) {
+export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durationMs, filters, onExport, onLinkedInExport }: ResultsTableProps) {
   const [sort, setSort] = useState<SortState>({ field: 'datePostedRaw', dir: 'desc' });
   const [filter, setFilter] = useState('');
 
@@ -336,7 +337,7 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
             ))}
           </select>
 
-          {/* Export button */}
+          {/* Export CSV */}
           <button
             onClick={onExport}
             disabled={jobs.length === 0}
@@ -352,6 +353,24 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
             <span className="hidden sm:inline">Export CSV</span>
             <span className="sm:hidden">CSV</span>
           </button>
+
+          {/* Export for LinkedIn */}
+          {onLinkedInExport && (
+            <button
+              onClick={onLinkedInExport}
+              disabled={jobs.length === 0}
+              className={clsx(
+                'flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors',
+                jobs.length === 0
+                  ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                  : 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white border-indigo-600 shadow-sm'
+              )}
+              aria-label="Export for LinkedIn"
+            >
+              <FileText size={15} />
+              <span className="hidden sm:inline">LinkedIn</span>
+            </button>
+          )}
         </div>
       </div>
 

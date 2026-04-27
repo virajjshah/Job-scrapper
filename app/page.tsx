@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { OnboardingBanner } from '@/components/OnboardingBanner';
 import type { ScrapeResult, SearchFilters } from '@/types/job';
 import { DEFAULT_FILTERS } from '@/types/job';
+import { formatJobsAsLinkedInText } from '@/lib/linkedinExport';
 import { ScanSearch, AlertCircle, X, CheckCircle, Search, Moon, Sun } from 'lucide-react';
 
 type ToastState = { type: 'success' | 'error'; message: string } | null;
@@ -153,6 +154,21 @@ export default function HomePage() {
     setToast({ type: 'success', message: `Exported ${result.jobs.length} jobs to CSV` });
   }, [result, lastKeywords]);
 
+  const handleLinkedInExport = useCallback(() => {
+    if (!result?.jobs.length) return;
+    const text = formatJobsAsLinkedInText(result.jobs, lastKeywords);
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `jobs-${(lastKeywords || 'search').replace(/\s+/g, '-')}-linkedin.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setToast({ type: 'success', message: `Exported ${result.jobs.length} jobs for LinkedIn` });
+  }, [result, lastKeywords]);
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* ── Header ────────────────────────────────────────────────────── */}
@@ -277,6 +293,7 @@ export default function HomePage() {
               durationMs={result.durationMs}
               filters={lastFilters}
               onExport={handleExport}
+              onLinkedInExport={handleLinkedInExport}
             />
           )}
         </main>
