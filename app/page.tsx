@@ -154,9 +154,9 @@ export default function HomePage() {
     setToast({ type: 'success', message: `Exported ${result.jobs.length} jobs to CSV` });
   }, [result, lastKeywords]);
 
-  const handleLinkedInExport = useCallback(() => {
-    if (!result?.jobs.length) return;
-    const text = formatJobsAsLinkedInText(result.jobs, lastKeywords);
+  const handleLinkedInExport = useCallback((selectedJobs: import('@/types/job').Job[]) => {
+    if (!selectedJobs.length) return;
+    const text = formatJobsAsLinkedInText(selectedJobs, lastKeywords);
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -166,8 +166,8 @@ export default function HomePage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    setToast({ type: 'success', message: `Exported ${result.jobs.length} jobs for LinkedIn` });
-  }, [result, lastKeywords]);
+    setToast({ type: 'success', message: `Exported ${selectedJobs.length} job${selectedJobs.length !== 1 ? 's' : ''} for LinkedIn` });
+  }, [lastKeywords]);
 
   return (
     <div className="min-h-screen flex flex-col">

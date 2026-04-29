@@ -15,7 +15,7 @@ interface ResultsTableProps {
   durationMs: number;
   filters: SearchFilters;
   onExport: () => void;
-  onLinkedInExport?: () => void;
+  onLinkedInExport?: (jobs: Job[]) => void;
 }
 
 type ColDef = {
@@ -165,28 +165,49 @@ function SortIcon({ field, sort }: { field: SortField | null; sort: SortState })
     : <ChevronDown size={13} className="text-blue-500" />;
 }
 
-function MobileJobCard({ job }: { job: Job }) {
+function MobileJobCard({
+  job,
+  isSelected,
+  onToggle,
+}: {
+  job: Job;
+  isSelected?: boolean;
+  onToggle?: () => void;
+}) {
   return (
     <div className={clsx(
       'bg-white dark:bg-gray-900 rounded-xl border shadow-sm p-4',
       job.hasCommission
         ? 'border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/10'
-        : 'border-gray-200 dark:border-gray-700'
+        : isSelected
+          ? 'border-indigo-400 dark:border-indigo-600 ring-1 ring-indigo-300 dark:ring-indigo-700'
+          : 'border-gray-200 dark:border-gray-700'
     )}>
-      {/* Top row: title + source badge */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <a
-            href={job.sourceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-semibold text-blue-700 dark:text-blue-400 hover:underline leading-snug line-clamp-2 text-base"
-          >
-            {job.title}
-          </a>
-          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-0.5">{job.company}</p>
+      {/* Top row: checkbox + title + source badge */}
+      <div className="flex items-start gap-2">
+        {onToggle && (
+          <input
+            type="checkbox"
+            checked={!!isSelected}
+            onChange={onToggle}
+            className="mt-1 w-4 h-4 flex-shrink-0 accent-indigo-600 cursor-pointer"
+            aria-label="Select job for LinkedIn export"
+          />
+        )}
+        <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <a
+              href={job.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-blue-700 dark:text-blue-400 hover:underline leading-snug line-clamp-2 text-base"
+            >
+              {job.title}
+            </a>
+            <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-0.5">{job.company}</p>
+          </div>
+          <Badge label={job.source} variant="source" source={job.source} />
         </div>
-        <Badge label={job.source} variant="source" source={job.source} />
       </div>
 
       {/* Location + work type */}
@@ -241,6 +262,15 @@ function MobileJobCard({ job }: { job: Job }) {
 export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durationMs, filters, onExport, onLinkedInExport }: ResultsTableProps) {
   const [sort, setSort] = useState<SortState>({ field: 'datePostedRaw', dir: 'desc' });
   const [filter, setFilter] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
 
   const handleSort = useCallback((field: SortField | null) => {
     if (!field) return;
@@ -288,6 +318,27 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
     return { visibleJobs: matching, hiddenJobs: hidden };
   }, [jobs, filter, filters, sortFn]);
 
+  const allVisibleSelected = visibleJobs.length > 0 && visibleJobs.every((j) => selectedIds.has(j.id));
+  const someVisibleSelected = visibleJobs.some((j) => selectedIds.has(j.id));
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        visibleJobs.forEach((j) => next.delete(j.id));
+      } else {
+        visibleJobs.forEach((j) => next.add(j.id));
+      }
+      return next;
+    });
+  }, [visibleJobs, allVisibleSelected]);
+
+  const handleLinkedInExport = useCallback(() => {
+    if (!onLinkedInExport || selectedIds.size === 0) return;
+    const selected = visibleJobs.filter((j) => selectedIds.has(j.id));
+    onLinkedInExport(selected);
+  }, [onLinkedInExport, selectedIds, visibleJobs]);
+
   const sourceCount = Object.entries(totalBySource)
     .filter(([, n]) => n > 0)
     .map(([src, n]) => `${n} from ${src}`)
@@ -303,17 +354,24 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
     <div className="flex flex-col gap-3 h-full">
       {/* Toolbar */}
       <div className="flex flex-col gap-2">
-        {/* Job count */}
-        <p className="text-sm text-gray-600 dark:text-gray-400 leading-snug">
-          <span className="font-semibold text-gray-900 dark:text-gray-100">{visibleJobs.length} jobs</span>
-          {hiddenJobs.length > 0 && (
-            <span className="text-gray-400 dark:text-gray-500"> · {hiddenJobs.length} shown below as potential matches</span>
+        {/* Job count + selection counter */}
+        <div className="flex items-center justify-between flex-wrap gap-1">
+          <p className="text-sm text-gray-600 dark:text-gray-400 leading-snug">
+            <span className="font-semibold text-gray-900 dark:text-gray-100">{visibleJobs.length} jobs</span>
+            {hiddenJobs.length > 0 && (
+              <span className="text-gray-400 dark:text-gray-500"> · {hiddenJobs.length} shown below as potential matches</span>
+            )}
+            {sourceCount && <span className="ml-1 text-gray-400 dark:text-gray-500">· {sourceCount}</span>}
+            {durationMs > 0 && (
+              <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">in {(durationMs / 1000).toFixed(1)}s</span>
+            )}
+          </p>
+          {selectedIds.size > 0 && (
+            <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
+              {selectedIds.size} selected
+            </span>
           )}
-          {sourceCount && <span className="ml-1 text-gray-400 dark:text-gray-500">· {sourceCount}</span>}
-          {durationMs > 0 && (
-            <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">in {(durationMs / 1000).toFixed(1)}s</span>
-          )}
-        </p>
+        </div>
 
         {/* Controls: filter input + mobile sort + export */}
         <div className="flex items-center gap-2">
@@ -357,15 +415,15 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
           {/* Export for LinkedIn */}
           {onLinkedInExport && (
             <button
-              onClick={onLinkedInExport}
-              disabled={jobs.length === 0}
+              onClick={handleLinkedInExport}
+              disabled={selectedIds.size === 0}
               className={clsx(
                 'flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors',
-                jobs.length === 0
+                selectedIds.size === 0
                   ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
                   : 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white border-indigo-600 shadow-sm'
               )}
-              aria-label="Export for LinkedIn"
+              aria-label="Export selected jobs for LinkedIn"
             >
               <FileText size={15} />
               <span className="hidden sm:inline">LinkedIn</span>
@@ -390,7 +448,14 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
               : 'No jobs found. Tap Filters to search.'}
           </div>
         ) : (
-          visibleJobs.map((job) => <MobileJobCard key={job.id} job={job} />)
+          visibleJobs.map((job) => (
+            <MobileJobCard
+              key={job.id}
+              job={job}
+              isSelected={selectedIds.has(job.id)}
+              onToggle={() => toggleSelect(job.id)}
+            />
+          ))
         )}
       </div>
 
@@ -399,6 +464,17 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
         <table className="min-w-full text-sm border-collapse">
           <thead>
             <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
+              {/* Select-all checkbox */}
+              <th className="px-3 py-3 w-10">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  ref={(el) => { if (el) el.indeterminate = someVisibleSelected && !allVisibleSelected; }}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 accent-indigo-600 cursor-pointer"
+                  aria-label="Select all visible jobs"
+                />
+              </th>
               {COLUMNS.map((col) => (
                 <th
                   key={col.label}
@@ -420,7 +496,7 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
             {visibleJobs.length === 0 ? (
               <tr>
-                <td colSpan={COLUMNS.length} className="px-4 py-12 text-center text-gray-400 dark:text-gray-500 text-sm">
+                <td colSpan={COLUMNS.length + 1} className="px-4 py-12 text-center text-gray-400 dark:text-gray-500 text-sm">
                   {jobs.length > 0
                     ? 'No jobs match your filters. Try broadening your keyword search or loosening other filters.'
                     : 'No jobs found. Try adjusting your search criteria.'}
@@ -432,11 +508,22 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
                   key={job.id}
                   className={clsx(
                     'hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors',
-                    job.hasCommission
-                      ? 'bg-amber-50 dark:bg-amber-900/10 hover:bg-amber-100 dark:hover:bg-amber-900/20'
-                      : 'dark:bg-gray-900'
+                    selectedIds.has(job.id)
+                      ? 'bg-indigo-50 dark:bg-indigo-900/20'
+                      : job.hasCommission
+                        ? 'bg-amber-50 dark:bg-amber-900/10 hover:bg-amber-100 dark:hover:bg-amber-900/20'
+                        : 'dark:bg-gray-900'
                   )}
                 >
+                  <td className="px-3 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(job.id)}
+                      onChange={() => toggleSelect(job.id)}
+                      className="w-4 h-4 accent-indigo-600 cursor-pointer"
+                      aria-label={`Select ${job.title}`}
+                    />
+                  </td>
                   {COLUMNS.map((col) => (
                     <td key={col.label} className={clsx('px-4 py-3 align-top', col.className)}>
                       {col.render(job)}
@@ -457,7 +544,14 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
           </p>
           {/* Mobile cards */}
           <div className="md:hidden flex flex-col gap-3">
-            {hiddenJobs.map((job) => <MobileJobCard key={job.id} job={job} />)}
+            {hiddenJobs.map((job) => (
+              <MobileJobCard
+                key={job.id}
+                job={job}
+                isSelected={selectedIds.has(job.id)}
+                onToggle={() => toggleSelect(job.id)}
+              />
+            ))}
           </div>
           {/* Desktop table */}
           <div className="hidden md:block overflow-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
@@ -468,11 +562,22 @@ export function ResultsTable({ jobs, totalBySource, totalDeduped, errors, durati
                     key={job.id}
                     className={clsx(
                       'hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors',
-                      job.hasCommission
-                        ? 'bg-amber-50 dark:bg-amber-900/10 hover:bg-amber-100 dark:hover:bg-amber-900/20'
-                        : 'dark:bg-gray-900'
+                      selectedIds.has(job.id)
+                        ? 'bg-indigo-50 dark:bg-indigo-900/20'
+                        : job.hasCommission
+                          ? 'bg-amber-50 dark:bg-amber-900/10 hover:bg-amber-100 dark:hover:bg-amber-900/20'
+                          : 'dark:bg-gray-900'
                     )}
                   >
+                    <td className="px-3 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(job.id)}
+                        onChange={() => toggleSelect(job.id)}
+                        className="w-4 h-4 accent-indigo-600 cursor-pointer"
+                        aria-label={`Select ${job.title}`}
+                      />
+                    </td>
                     {COLUMNS.map((col) => (
                       <td key={col.label} className={clsx('px-4 py-3 align-top', col.className)}>
                         {col.render(job)}
